@@ -1,0 +1,9 @@
+[package]
+name = "umass_events_discord"
+version = "0.1.0"
+authors = ["gbear605 <developer@vivissi.com>"]
+
+[dependencies]
+discord = "0.8.0"
+reqwest = "0.7.3"
+select = "0.4.2"
