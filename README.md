@@ -6,6 +6,7 @@ The program requires a bot token to connect to Discord. It does this using a "to
 
 ## Commands
 
+| ------------- |-------------| -----|
 | !menu [food name] | tells you where that food is being served today |
 | !register [food name] | schedules it to tell you each day where that food is being served that day |
 | !events | tells you the events for that day [[Currently broken!]] |
