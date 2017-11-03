@@ -24,6 +24,10 @@ use std::ops::DerefMut;
 
 use std::process;
 
+// Allow openssl crosscompiling to work
+extern crate openssl_probe;
+
+
 extern crate time;
 
 #[derive(Debug)]
@@ -346,6 +350,9 @@ fn get_time_till_midnight() -> std::time::Duration {
 }
 
 fn main() {
+    // Allow openssl crosscompiling to work
+    openssl_probe::init_ssl_cert_env_vars();
+
     let listeners: Arc<Mutex<Vec<(ChannelId, String)>>> =
         Arc::new(Mutex::new(read_listeners()));
     let client = login(listeners.clone());
