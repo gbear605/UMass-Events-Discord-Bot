@@ -289,8 +289,6 @@ impl EventHandler for Handler {
             listeners.lock().unwrap().deref_mut().push((message.channel_id, item.clone()));
             save_listeners(listeners.lock().unwrap().deref_mut());
             let _ = message.channel_id.say(format!("Will check for {}", item).to_string());
-        } else if message.content == "!quit" {
-            process::exit(0);
         }
     }
 }
