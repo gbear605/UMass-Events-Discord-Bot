@@ -1,13 +1,15 @@
-extern crate discord;
 extern crate reqwest;
 extern crate select;
-
-use discord::Discord;
-use discord::model::Event;
-use discord::model::Message;
+#[macro_use] extern crate serenity;
 
 use select::document::Document;
 use select::predicate::Class;
+
+use serenity::client::Client;
+use serenity::prelude::*;
+use serenity::model::*;
+use serenity::framework::standard::StandardFramework;
+
 
 // For file reading
 use std::io::Read;
@@ -17,8 +19,6 @@ use std::fs::OpenOptions;
 
 // For multithreading
 use std::thread;
-use std::sync::mpsc::channel;
-use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
 use std::ops::DerefMut;
 
@@ -45,8 +45,8 @@ impl UMassEvent {
     }
 }
 
-fn get_document() -> Result<select::document::Document, reqwest::Error> {
-    reqwest::get("http://www.umass.edu/events/").map(|mut response| {
+fn get_document(url: &str) -> Result<select::document::Document, reqwest::Error> {
+    reqwest::get(url).map(|mut response| {
         // Extract the data from the http request
         let mut content = String::new();
         let _ = response.read_to_string(&mut content);
@@ -55,7 +55,7 @@ fn get_document() -> Result<select::document::Document, reqwest::Error> {
 }
 
 fn get_events() -> Vec<UMassEvent> {
-    let document = get_document().expect("Couldn't get the events page");
+    let document = get_document("http://www.umass.edu/events/").expect("Couldn't get the events page");
 
     // Parse the data into a list of events
     let events = document.find(Class("views-row"))
@@ -195,12 +195,7 @@ fn get_menu_document(dining_common: DiningCommon,
 
     println!("{}", url);
 
-    reqwest::get(url).map(|mut response| {
-        // Extract the data from the http request
-        let mut content = String::new();
-        let _ = response.read_to_string(&mut content);
-        Document::from(&*content)
-    })
+    get_document(url)
 
 }
 
@@ -225,10 +220,10 @@ fn load_token() -> String {
 }
 
 // Login to Discord and connect
-fn login() -> (discord::Discord, discord::Connection) {
-    let discord = Discord::from_bot_token(load_token().trim()).expect("Login failed");
-    let connection = discord.connect().expect("Connect failed").0;
-    (discord, connection)
+fn login(listeners: Arc<Mutex<Vec<(ChannelId, String)>>>) -> Client<Handler> {
+    let mut client = Client::new(load_token().trim(), Handler{listeners: listeners});
+    let _ = client.start();
+    client
 }
 
 fn check_for(food: String) -> String {
@@ -259,38 +254,44 @@ fn check_for(food: String) -> String {
     }
 }
 
-fn message_handler(tx: Sender<(discord::model::ChannelId, String)>,
-                   message: Message,
-                   listeners: Arc<Mutex<Vec<(discord::model::ChannelId, String)>>>) {
-    thread::spawn(move || {
+
+
+struct Handler {
+    listeners: Arc<Mutex<Vec<(serenity::model::ChannelId, String)>>>
+}
+
+impl EventHandler for Handler {
+    fn on_message(&self, _ctx: Context, message: Message) {
+        let listeners = self.listeners.clone();
+
         println!("{} says: {}", message.author.name, message.content);
         if message.content == "!events" {
 
             let events = get_events();
 
             // Intro
-            let _ = tx.send((message.channel_id, "Today's events are:".to_string()));
+            let _ = message.channel_id.say("Today's events are:".to_string());
 
             let _ = events.iter()
-                .map(|event| tx.send((message.channel_id, event.format().to_string())));
+                .map(|event| message.channel_id.say(event.format().to_string()));
 
         } else if message.content.starts_with("!menu ") {
             let item: String = message.content[6..].to_string();
 
-            let _ = tx.send((message.channel_id, format!("Checking for {}", item).to_string()));
-            let _ = tx.send((message.channel_id, check_for(item)));
+            let _ = message.channel_id.say(format!("Checking for {}", item).to_string());
+            let _ = message.channel_id.say(check_for(item));
         } else if message.content.starts_with("!register ") {
             let item: String = message.content[10..].to_string();
             listeners.lock().unwrap().deref_mut().push((message.channel_id, item.clone()));
             save_listeners(listeners.lock().unwrap().deref_mut());
-            let _ = tx.send((message.channel_id, format!("Will check for {}", item).to_string()));
+            let _ = message.channel_id.say(format!("Will check for {}", item).to_string());
         } else if message.content == "!quit" {
             process::exit(0);
         }
-    });
+    }
 }
 
-fn read_listeners() -> Vec<(discord::model::ChannelId, String)> {
+fn read_listeners() -> Vec<(serenity::model::ChannelId, String)> {
     let mut listeners_string: String = String::new();
     let _ = OpenOptions::new()
         .read(true)
@@ -300,14 +301,14 @@ fn read_listeners() -> Vec<(discord::model::ChannelId, String)> {
         .expect("No listeners file")
         .read_to_string(&mut listeners_string);
 
-    let mut listeners: Vec<(discord::model::ChannelId, String)> = vec![];
+    let mut listeners: Vec<(serenity::model::ChannelId, String)> = vec![];
 
     for line in listeners_string.split('\n') {
         if line == "" {
             continue;
         }
         let sections: Vec<&str> = line.split(' ').collect();
-        let id = discord::model::ChannelId(sections[0]
+        let id = serenity::model::ChannelId(sections[0]
             .parse::<u64>()
             .expect("Couldn't parse channel id"));
         let food: String = sections[1..].join(" ").to_string();
@@ -317,7 +318,7 @@ fn read_listeners() -> Vec<(discord::model::ChannelId, String)> {
     listeners
 }
 
-fn save_listeners(vec: &Vec<(discord::model::ChannelId, String)>) {
+fn save_listeners(vec: &Vec<(serenity::model::ChannelId, String)>) {
     let mut listeners_string: String = String::new();
     vec.into_iter().for_each(|x| {
         let (ref id, ref food) = *x;
@@ -345,54 +346,25 @@ fn get_time_till_midnight() -> std::time::Duration {
 }
 
 fn main() {
-    let (discord, mut connection) = login();
-    println!("Connected to Discord");
-    println!("Connected to servers: {:?}", discord.get_servers());
-
-
-    let (tx, rx) = channel::<(discord::model::ChannelId, String)>();
-
-    let listeners: Arc<Mutex<Vec<(discord::model::ChannelId, String)>>> =
+    let listeners: Arc<Mutex<Vec<(ChannelId, String)>>> =
         Arc::new(Mutex::new(read_listeners()));
+    let client = login(listeners.clone());
+    println!("Connected to Discord");
+    //println!("Connected to servers: {:?}", discord.get_servers());
 
-
-    // Discord sender loop
-    thread::spawn(move || {
-        loop {
-            let (id, message) = rx.recv().unwrap();
-            let _ = discord.send_message(id, &message, "", false);
-        }
-    });
 
     // Listeners loop
     let listeners_clone = listeners.clone();
-    let tx_clone = tx.clone();
     thread::spawn(move || {
         let listeners = listeners_clone;
-        let tx = tx_clone;
         loop {
             thread::sleep(get_time_till_midnight());
             listeners.lock().unwrap().to_vec().into_iter().for_each(|(channel, food)| {
-                let tx_clone = tx.clone();
-                thread::spawn(move || {
-                    let _ = tx_clone.send((channel, check_for(food)));
-                });
+                channel.say(check_for(food));
             });
         }
     });
 
-    // Message handler loop
-    loop {
-        match connection.recv_event() {
-            Ok(Event::MessageCreate(message)) => {
-                message_handler(tx.clone(), message, listeners.clone());
-            }
-            Ok(_) => {}
-            Err(discord::Error::Closed(code, body)) => {
-                println!("Gateway closed on us with code {:?}: {}", code, body);
-                break;
-            }
-            Err(err) => println!("Receive error: {:?}", err),
-        }
-    }
+
+
 }
