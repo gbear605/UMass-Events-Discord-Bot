@@ -35,3 +35,5 @@ The built file will be in ``target/x86_64-unknown-linux-musl/release``
 * Add !help
 * Add !deregister
 * Fix !events
+* Allow authorized users (ie. gbear605) to make announcements to all servers the bot is on
+* Make !menu and scheduled food announcements say what the entire name of that food is (so searching for pizza would say all the different types of pizzas at each DC)
