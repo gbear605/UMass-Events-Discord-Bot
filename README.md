@@ -8,12 +8,14 @@ The program requires a bot token to connect to Discord. It does this using a "to
 
 Using: https://github.com/emk/rust-musl-builder
 
-Set the alias for the builder
+Set the alias for the builder:
+
 ``alias rust-musl-builder='docker run --rm -it -v "$(pwd)":/home/rust/src ekidd/rust-musl-builder'``
 
 Start the Docker daemon (if it isn't already running)
 
-Build
+Build:
+
 ``rust-musl-builder cargo build --release``
 
 The built file will be in ``target/x86_64-unknown-linux-musl/release``
