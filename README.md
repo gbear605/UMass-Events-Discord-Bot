@@ -29,10 +29,10 @@ The built file will be in ``target/x86_64-unknown-linux-musl/release``
 | !menu [food name]     | tells you where that food is being served today                             |
 | !register [food name] | schedules it to tell you each day where that food is being served that day  |
 | !events               | tells you the events for that day [[Currently broken!]]                     |
+| !help                 | tells you this list of commands                                             |
 
 ## TODO
 
-* Add !help
 * Add !deregister
 * Fix !events
 * Allow authorized users (ie. gbear605) to make announcements to all servers the bot is on

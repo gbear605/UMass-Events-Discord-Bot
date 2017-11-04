@@ -1,6 +1,6 @@
 extern crate reqwest;
 extern crate select;
-#[macro_use] extern crate serenity;
+extern crate serenity;
 
 use select::document::Document;
 use select::predicate::Class;
@@ -8,8 +8,6 @@ use select::predicate::Class;
 use serenity::client::Client;
 use serenity::prelude::*;
 use serenity::model::*;
-use serenity::framework::standard::StandardFramework;
-
 
 // For file reading
 use std::io::Read;
@@ -21,8 +19,6 @@ use std::fs::OpenOptions;
 use std::thread;
 use std::sync::{Arc, Mutex};
 use std::ops::DerefMut;
-
-use std::process;
 
 // Allow openssl crosscompiling to work
 extern crate openssl_probe;
@@ -226,7 +222,6 @@ fn load_token() -> String {
 // Login to Discord and connect
 fn login(listeners: Arc<Mutex<Vec<(ChannelId, String)>>>) -> Client<Handler> {
     let mut client = Client::new(load_token().trim(), Handler{listeners: listeners});
-    let _ = client.start();
     client
 }
 
@@ -268,7 +263,14 @@ impl EventHandler for Handler {
     fn on_message(&self, _ctx: Context, message: Message) {
         let listeners = self.listeners.clone();
 
-        println!("{} says: {}", message.author.name, message.content);
+        //We don't want it to respond to other bots or itself!
+        if message.author.bot {
+            return;
+        }
+
+        let is_owner: bool = message.author.id == 90927967651262464;
+
+        println!("{}: {} says: {}", message.author.name, message.author.id, message.content);
         if message.content == "!events" {
 
             let events = get_events();
@@ -289,6 +291,15 @@ impl EventHandler for Handler {
             listeners.lock().unwrap().deref_mut().push((message.channel_id, item.clone()));
             save_listeners(listeners.lock().unwrap().deref_mut());
             let _ = message.channel_id.say(format!("Will check for {}", item).to_string());
+        } else if message.content == "!help" {
+            let _ = message.channel_id.say("UMass Bot help:");
+            let _ = message.channel_id.say("!menu [food name] | tells you where that food is being served today");
+            let _ = message.channel_id.say("!register [food name] | schedules it to tell you each day where that food is being served that day");
+        } else if message.content.starts_with("!guilds") && is_owner {
+            let cache = serenity::CACHE.read().unwrap();
+            let guilds = cache.all_guilds();
+            let _ = message.channel_id.say(format!("Guilds:"));
+            guilds.into_iter().for_each(|guild| {let _ = message.channel_id.say(format!("{:?}", guild.get().unwrap().name));});            
         }
     }
 }
@@ -353,7 +364,7 @@ fn main() {
 
     let listeners: Arc<Mutex<Vec<(ChannelId, String)>>> =
         Arc::new(Mutex::new(read_listeners()));
-    let client = login(listeners.clone());
+    let mut client = login(listeners.clone());
     println!("Connected to Discord");
     //println!("Connected to servers: {:?}", discord.get_servers());
 
@@ -365,10 +376,13 @@ fn main() {
         loop {
             thread::sleep(get_time_till_midnight());
             listeners.lock().unwrap().to_vec().into_iter().for_each(|(channel, food)| {
-                channel.say(check_for(food));
+                let _ = channel.say(check_for(food));
             });
         }
     });
+
+    let _ = client.start();
+
 
 
 
