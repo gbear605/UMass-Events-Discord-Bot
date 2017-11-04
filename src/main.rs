@@ -221,8 +221,7 @@ fn load_token() -> String {
 
 // Login to Discord and connect
 fn login(listeners: Arc<Mutex<Vec<(ChannelId, String)>>>) -> Client<Handler> {
-    let mut client = Client::new(load_token().trim(), Handler{listeners: listeners});
-    client
+    Client::new(load_token().trim(), Handler{listeners: listeners})
 }
 
 fn check_for(food: String) -> String {
@@ -253,7 +252,11 @@ fn check_for(food: String) -> String {
     }
 }
 
-
+fn get_guilds() -> Vec<String> {
+    let cache = serenity::CACHE.read().unwrap();
+    let guilds = cache.all_guilds();
+    guilds.into_iter().map(|guild| {guild.get().unwrap().name}).collect()           
+}
 
 struct Handler {
     listeners: Arc<Mutex<Vec<(serenity::model::ChannelId, String)>>>
@@ -263,6 +266,8 @@ impl EventHandler for Handler {
     fn on_message(&self, _ctx: Context, message: Message) {
         let listeners = self.listeners.clone();
 
+        println!("{}: {} says: {}", message.author.name, message.author.id, message.content);
+
         //We don't want it to respond to other bots or itself!
         if message.author.bot {
             return;
@@ -270,7 +275,6 @@ impl EventHandler for Handler {
 
         let is_owner: bool = message.author.id == 90927967651262464;
 
-        println!("{}: {} says: {}", message.author.name, message.author.id, message.content);
         if message.content == "!events" {
 
             let events = get_events();
@@ -293,13 +297,10 @@ impl EventHandler for Handler {
             let _ = message.channel_id.say(format!("Will check for {}", item).to_string());
         } else if message.content == "!help" {
             let _ = message.channel_id.say("UMass Bot help:");
-            let _ = message.channel_id.say("!menu [food name] | tells you where that food is being served today");
-            let _ = message.channel_id.say("!register [food name] | schedules it to tell you each day where that food is being served that day");
+            let _ = message.channel_id.say("```!menu [food name]     | tells you where that food is being served today```");
+            let _ = message.channel_id.say("```!register [food name] | schedules it to tell you each day where that food is being served that day```");
         } else if message.content.starts_with("!guilds") && is_owner {
-            let cache = serenity::CACHE.read().unwrap();
-            let guilds = cache.all_guilds();
-            let _ = message.channel_id.say(format!("Guilds:"));
-            guilds.into_iter().for_each(|guild| {let _ = message.channel_id.say(format!("{:?}", guild.get().unwrap().name));});            
+            let _ = message.channel_id.say(format!("Guilds: {}", get_guilds().join(", ")));
         }
     }
 }
@@ -366,7 +367,7 @@ fn main() {
         Arc::new(Mutex::new(read_listeners()));
     let mut client = login(listeners.clone());
     println!("Connected to Discord");
-    //println!("Connected to servers: {:?}", discord.get_servers());
+    println!("Connected to servers: {}", get_guilds().join(", "));
 
 
     // Listeners loop
