@@ -55,7 +55,8 @@ fn get_document(url: &str) -> Result<select::document::Document, reqwest::Error>
 }
 
 fn get_events() -> Vec<UMassEvent> {
-    let document = get_document("http://www.umass.edu/events/").expect("Couldn't get the events page");
+    let document = get_document("http://www.umass.edu/events/")
+        .expect("Couldn't get the events page");
 
     // Parse the data into a list of events
     let events = document.find(Class("views-row"))
@@ -221,7 +222,7 @@ fn load_token() -> String {
 
 // Login to Discord and connect
 fn login(listeners: Arc<Mutex<Vec<(ChannelId, String)>>>) -> Client<Handler> {
-    Client::new(load_token().trim(), Handler{listeners: listeners})
+    Client::new(load_token().trim(), Handler { listeners: listeners })
 }
 
 fn check_for(food: String) -> String {
@@ -266,8 +267,8 @@ impl EventHandler for Handler {
     fn on_message(&self, _ctx: Context, message: Message) {
         let listeners = self.listeners.clone();
 
-        if !message.content.starts_with("!") { 
-            //It's not a command, so we don't care about it
+        if !message.content.starts_with("!") {
+            // It's not a command, so we don't care about it
             return;
         }
 
@@ -275,7 +276,7 @@ impl EventHandler for Handler {
             // We don't want it to respond to other bots or itself!
             return;
         }
-        
+
         println!("{}: {} says: {}",
                  message.author.name,
                  message.author.id,
@@ -305,8 +306,12 @@ impl EventHandler for Handler {
             let _ = message.channel_id.say(format!("Will check for {}", item).to_string());
         } else if message.content == "!help" {
             let _ = message.channel_id.say("UMass Bot help:");
-            let _ = message.channel_id.say("```!menu [food name]     | tells you where that food is being served today```");
-            let _ = message.channel_id.say("```!register [food name] | schedules it to tell you each day where that food is being served that day```");
+            let _ = message.channel_id
+                .say("```!menu [food name]     | tells you where that food is being served \
+                      today```");
+            let _ = message.channel_id
+                .say("```!register [food name] | schedules it to tell you each day where that \
+                      food is being served that day```");
         } else if message.content.starts_with("!guilds") && is_owner {
             let _ = message.channel_id.say(format!("Guilds: {}", get_guilds().join(", ")));
         }
@@ -362,13 +367,13 @@ fn get_time_till_midnight() -> std::time::Duration {
     // The server the bot is deployed on is in UTC, so we have to adjust by 5 hours
     let current_time = time::now();
     let mut next_midnight: time::Tm = (time::now() + time::Duration::days(1)).to_local();
-    if current_time.tm_hour < 5 || (current_time.tm_hour == 5 && current_time.tm_min < 5) { 
+    if current_time.tm_hour < 5 || (current_time.tm_hour == 5 && current_time.tm_min < 5) {
         // We want to do it today (in UTC) if it is still yesterday in Eastern Time
-        next_midnight = current_time.to_local(); 
+        next_midnight = current_time.to_local();
     }
     next_midnight.tm_sec = 0;
     next_midnight.tm_min = 5;
-    next_midnight.tm_hour = 5; 
+    next_midnight.tm_hour = 5;
 
     (next_midnight - time::now()).to_std().unwrap()
 }
@@ -377,8 +382,7 @@ fn main() {
     // Allow openssl crosscompiling to work
     openssl_probe::init_ssl_cert_env_vars();
 
-    let listeners: Arc<Mutex<Vec<(ChannelId, String)>>> =
-        Arc::new(Mutex::new(read_listeners()));
+    let listeners: Arc<Mutex<Vec<(ChannelId, String)>>> = Arc::new(Mutex::new(read_listeners()));
     let mut client = login(listeners.clone());
     println!("Connected to Discord");
     println!("Connected to servers: {}", get_guilds().join(", "));
