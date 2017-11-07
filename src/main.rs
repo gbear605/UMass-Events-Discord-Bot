@@ -255,23 +255,31 @@ fn check_for(food: String) -> String {
 fn get_guilds() -> Vec<String> {
     let cache = serenity::CACHE.read().unwrap();
     let guilds = cache.all_guilds();
-    guilds.into_iter().map(|guild| {guild.get().unwrap().name}).collect()           
+    guilds.into_iter().map(|guild| guild.get().unwrap().name).collect()
 }
 
 struct Handler {
-    listeners: Arc<Mutex<Vec<(serenity::model::ChannelId, String)>>>
+    listeners: Arc<Mutex<Vec<(serenity::model::ChannelId, String)>>>,
 }
 
 impl EventHandler for Handler {
     fn on_message(&self, _ctx: Context, message: Message) {
         let listeners = self.listeners.clone();
 
-        println!("{}: {} says: {}", message.author.name, message.author.id, message.content);
-
-        //We don't want it to respond to other bots or itself!
-        if message.author.bot {
+        if !message.content.starts_with("!") { 
+            //It's not a command, so we don't care about it
             return;
         }
+
+        if message.author.bot {
+            // We don't want it to respond to other bots or itself!
+            return;
+        }
+        
+        println!("{}: {} says: {}",
+                 message.author.name,
+                 message.author.id,
+                 message.content);
 
         let is_owner: bool = message.author.id == 90927967651262464;
 
