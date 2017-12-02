@@ -362,18 +362,18 @@ fn save_listeners(vec: &Vec<(serenity::model::ChannelId, String)>) {
         .write_all(listeners_string.as_bytes());
 }
 
-// Technically gets 5 minutes after midnight... :)
-fn get_time_till_midnight() -> std::time::Duration {
+// Runs at 6 AM
+fn get_time_till_scheduled() -> std::time::Duration {
     // The server the bot is deployed on is in UTC, so we have to adjust by 5 hours
     let current_time = time::now();
     let mut next_midnight: time::Tm = (time::now() + time::Duration::days(1)).to_local();
-    if current_time.tm_hour < 5 || (current_time.tm_hour == 5 && current_time.tm_min < 5) {
+    if current_time.tm_hour < 11 || (current_time.tm_hour == 11 && current_time.tm_min < 5) {
         // We want to do it today (in UTC) if it is still yesterday in Eastern Time
         next_midnight = current_time.to_local();
     }
     next_midnight.tm_sec = 0;
     next_midnight.tm_min = 5;
-    next_midnight.tm_hour = 5;
+    next_midnight.tm_hour = 11;
 
     (next_midnight - time::now()).to_std().unwrap()
 }
@@ -393,8 +393,8 @@ fn main() {
     thread::spawn(move || {
         let listeners = listeners_clone;
         loop {
-            println!("Seconds till midnight: {:?}", get_time_till_midnight());
-            thread::sleep(get_time_till_midnight());
+            println!("Seconds till scheduled: {:?}", get_time_till_scheduled());
+            thread::sleep(get_time_till_scheduled());
             println!("Checking for foods now!");
             listeners.lock().unwrap().to_vec().into_iter().for_each(|(channel, food)| {
                 println!("Checking on {:?} for {}", channel, food);
