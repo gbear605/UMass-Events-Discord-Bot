@@ -2,3 +2,6 @@
 **/*.rs.bk
 token
 .DS_Store
+README_SSH.md
+listeners.txt
+token_actual

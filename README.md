@@ -10,13 +10,17 @@ To add it to your server, go to [this link](https://discordapp.com/api/oauth2/au
 
 Using: https://github.com/emk/rust-musl-builder
 
-Set the alias for the builder:
+Docker needs to be installed.
+
+1) Set the alias for the builder:
 
 ``alias rust-musl-builder='docker run --rm -it -v "$(pwd)":/home/rust/src ekidd/rust-musl-builder'``
 
-Start the Docker daemon (if it isn't already running)
+2) Start the Docker daemon (if it isn't already running)
 
-Build:
+3) Build: (this will download a linux docker image to compile in if it is not already downloaded)
+
+Expect the build step to take a while (roughly a minute) each time after the first.
 
 ``rust-musl-builder cargo build --release``
 
@@ -37,4 +41,3 @@ The built file will be in ``target/x86_64-unknown-linux-musl/release``
 * Fix !events
 * Add !time that says how long until the next scheduled food announcement
 * Allow authorized users (ie. gbear605) to make announcements to all servers the bot is on
-* Make !menu and scheduled food announcements say what the entire name of that food is (so searching for pizza would say all the different types of pizzas at each DC)

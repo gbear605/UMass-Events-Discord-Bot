@@ -3,26 +3,27 @@ extern crate select;
 extern crate serenity;
 
 use select::document::Document;
+use select::predicate::Attr;
 use select::predicate::Class;
+use select::predicate::Predicate;
 
 use serenity::client::Client;
-use serenity::prelude::*;
 use serenity::model::*;
+use serenity::prelude::*;
 
 // For file reading
-use std::io::Read;
 use std::fs::File;
-use std::io::Write;
 use std::fs::OpenOptions;
+use std::io::Read;
+use std::io::Write;
 
 // For multithreading
-use std::thread;
-use std::sync::{Arc, Mutex};
 use std::ops::DerefMut;
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 // Allow openssl crosscompiling to work
 extern crate openssl_probe;
-
 
 extern crate time;
 
@@ -40,7 +41,7 @@ impl UMassEvent {
             // "Event_Name at Event_location: Long Description"
             Some(ref location) => format!("{} at {}:\n{}", self.title, location, self.description),
             // "Event_Name: Long Description"
-            None => format!("{}:\n{}", self.title, self.description),   
+            None => format!("{}:\n{}", self.title, self.description),
         }
     }
 }
@@ -55,16 +56,17 @@ fn get_document(url: &str) -> Result<select::document::Document, reqwest::Error>
 }
 
 fn get_events() -> Vec<UMassEvent> {
-    let document = get_document("http://www.umass.edu/events/")
-        .expect("Couldn't get the events page");
+    let document =
+        get_document("http://www.umass.edu/events/").expect("Couldn't get the events page");
 
     // Parse the data into a list of events
-    let events = document.find(Class("views-row"))
+    document
+        .find(Class("views-row"))
         .map(|node| {
-
             // This is really janky and relies on UMass not changing the event page html...
 
-            let title = node.find(Class("views-field-title"))
+            let title = node
+                .find(Class("views-field-title"))
                 .next()
                 .unwrap()
                 .children()
@@ -75,7 +77,8 @@ fn get_events() -> Vec<UMassEvent> {
                 .first_child()
                 .unwrap()
                 .text();
-            let description = node.find(Class("views-field-field-short-desc"))
+            let description = node
+                .find(Class("views-field-field-short-desc"))
                 .next()
                 .unwrap()
                 .children()
@@ -85,7 +88,8 @@ fn get_events() -> Vec<UMassEvent> {
                 .unwrap()
                 .text();
             let date = node.find(Class("event-date")).next().unwrap().text();
-            let location = node.find(Class("event-location"))
+            let location = node
+                .find(Class("event-location"))
                 .next()
                 .unwrap()
                 .children()
@@ -100,14 +104,10 @@ fn get_events() -> Vec<UMassEvent> {
                 location: location,
             }
         })
-        .collect();
-
-    events
+        .collect()
 }
 
-#[derive(Copy)]
-#[derive(Clone)]
-#[derive(Debug)]
+#[derive(Copy, Clone, Debug)]
 enum Meal {
     Breakfast,
     Lunch,
@@ -115,9 +115,18 @@ enum Meal {
     LateNight,
 }
 
-#[derive(Copy)]
-#[derive(Clone)]
-#[derive(Debug)]
+impl std::fmt::Display for Meal {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter) -> std::result::Result<(), std::fmt::Error> {
+        formatter.write_str(match self {
+            Meal::Breakfast => "Breakfast",
+            Meal::Lunch => "Lunch",
+            Meal::Dinner => "Dinner",
+            Meal::LateNight => "Late Night",
+        })
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
 enum DiningCommon {
     Berk,
     Hamp,
@@ -127,136 +136,151 @@ enum DiningCommon {
 
 fn get_meal_code(meal: Meal, dining_common: DiningCommon) -> String {
     match dining_common {
-            DiningCommon::Worcester => {
-                match meal {
-                    Meal::Breakfast => "0700001", 
-                    Meal::Lunch => "1130001",
-                    Meal::Dinner => "1630001",
-                    Meal::LateNight => "2100001",
-                }
-            }
-            DiningCommon::Frank => {
-                match meal {
-                    Meal::Breakfast => "0700002", 
-                    Meal::Lunch => "1130002",
-                    Meal::Dinner => "1630002",
-                    Meal::LateNight => panic!("Frank doesn't have late night"),
-                }
-            }
-            DiningCommon::Hamp => {
-                match meal {
-                    Meal::Breakfast => "0700003", 
-                    Meal::Lunch => "1130003",
-                    Meal::Dinner => "1630003",
-                    Meal::LateNight => panic!("Hamp doesn't have late night"),
-                }
-            }
-            DiningCommon::Berk => {
-                match meal {
-                    Meal::Breakfast => panic!("Berk doesn't have breakfast"), 
-                    Meal::Lunch => "1100004",
-                    Meal::Dinner => "1630004",
-                    Meal::LateNight => "2100004",
-                }
-            }
-        }
-        .to_string()
-
+        DiningCommon::Worcester => match meal {
+            Meal::Breakfast => "breakfast_menu",
+            Meal::Lunch => "lunch_menu",
+            Meal::Dinner => "dinner_menu",
+            Meal::LateNight => "latenight_menu",
+        },
+        DiningCommon::Frank => match meal {
+            Meal::Breakfast => "breakfast_menu",
+            Meal::Lunch => "lunch_menu",
+            Meal::Dinner => "dinner_menu",
+            Meal::LateNight => panic!("Frank doesn't have late night"),
+        },
+        DiningCommon::Hamp => match meal {
+            Meal::Breakfast => "breakfast_menu",
+            Meal::Lunch => "lunch_menu",
+            Meal::Dinner => "dinner_menu",
+            Meal::LateNight => panic!("Hamp doesn't have late night"),
+        },
+        DiningCommon::Berk => match meal {
+            Meal::Breakfast => panic!("Berk doesn't have breakfast"),
+            Meal::Lunch => "lunch_menu",
+            Meal::Dinner => "dinner_menu",
+            Meal::LateNight => "latenight_menu",
+        },
+    }.to_string()
 }
 
 fn get_dining_common_code(dining_common: DiningCommon) -> String {
     match dining_common {
-            DiningCommon::Worcester => "0",
-            DiningCommon::Frank => "1",
-            DiningCommon::Hamp => "2",
-            DiningCommon::Berk => "3",
-        }
-        .to_string()
+        DiningCommon::Worcester => "worcester",
+        DiningCommon::Frank => "franklin",
+        DiningCommon::Hamp => "hampshire",
+        DiningCommon::Berk => "berkshire",
+    }.to_string()
 }
 
-fn get_menu_document(dining_common: DiningCommon,
-                     meal: Meal)
-                     -> Result<select::document::Document, reqwest::Error> {
-    let dining_common_id = get_dining_common_code(dining_common.clone());
+fn get_menu_document(
+    dining_common: DiningCommon,
+) -> Result<select::document::Document, reqwest::Error> {
+    let dining_common_id = get_dining_common_code(dining_common);
 
-    let time = time::now();
-
-    let year = time.tm_year + 1900;
-    let month = format!("{:02}", time.tm_mon + 1);
-    let day = format!("{:02}", time.tm_mday);
-    let meal = get_meal_code(meal, dining_common);
-
-    let url: &str = &format!("https://go.umass.\
-                              edu/dining/event?feed=dining-halls&id=id_{id}&calendar=dining-halls_id_{id}_event_calendar&startdate={day}-{month}-{year}&event={year}{month}{day}T{meal}%7C{year}{month}{day}T000000&calendarMode=day",
-                             id = dining_common_id,
-                             year = year,
-                             month = month,
-                             day = day,
-                             meal = meal);
+    let url: &str = &format!(
+        "http://umassdining.com/locations-menus/{dining_common}/menu",
+        dining_common = dining_common_id
+    );
 
     println!("{}", url);
 
     get_document(url)
-
 }
 
-fn is_on_menu(dining_common: DiningCommon, meal: Meal, item: &str) -> bool {
-    let nodes: Vec<String> = get_menu_document(dining_common, meal)
+fn get_on_menu(dining_common: DiningCommon, meal: Meal, item: &str) -> Vec<String> {
+    let nodes: Vec<String> = get_menu_document(dining_common)
         .expect("Couldn't get the menu page")
-        .find(Class("kgo_web_content"))
+        .find(
+            Attr("id", &get_meal_code(meal, dining_common)[..])
+                .descendant(Attr("id", "content_text")),
+        )
+        .nth(0)
+        .expect("Couldn't find the menu items on page")
+        .find(Class("lightbox-nutrition"))
         .map(|node| node.text())
         .collect();
 
-    let text: String = nodes.join(" ");
+    nodes
+        .into_iter()
+        .map(|text| text.to_lowercase())
+        .filter(|text| text.contains(item.to_lowercase().as_str()))
+        .collect()
 
+    //println!("{}", filtered.join(" "));
+}
 
-    return text.to_lowercase().as_str().contains(item.to_lowercase().as_str());
+fn is_on_menu(dining_common: DiningCommon, meal: Meal, item: &str) -> bool {
+    let filtered = get_on_menu(dining_common, meal, item);
+
+    println!("{}", filtered.join(" "));
+
+    !filtered.is_empty()
 }
 
 // Get the token file from memory
 fn load_token() -> String {
     let mut token = String::new();
-    let _ = File::open("token").expect("No token file").read_to_string(&mut token);
+    let _ = File::open("token")
+        .expect("No token file")
+        .read_to_string(&mut token);
     token
 }
 
 // Login to Discord and connect
 fn login(listeners: Arc<Mutex<Vec<(ChannelId, String)>>>) -> Client<Handler> {
-    Client::new(load_token().trim(), Handler { listeners: listeners })
+    Client::new(
+        load_token().trim(),
+        Handler {
+            listeners: listeners,
+        },
+    )
 }
 
-fn check_for(food: String) -> String {
+fn check_for(food: &str) -> String {
     let mut places: Vec<String> = vec![];
 
-    for dining_common in vec![DiningCommon::Berk,
-                              DiningCommon::Hamp,
-                              DiningCommon::Frank,
-                              DiningCommon::Worcester] {
-        let meals = match dining_common.clone() {
+    for dining_common in &[
+        DiningCommon::Berk,
+        DiningCommon::Hamp,
+        DiningCommon::Frank,
+        DiningCommon::Worcester,
+    ] {
+        let meals = match *dining_common {
             DiningCommon::Berk => vec![Meal::Lunch, Meal::Dinner, Meal::LateNight],
-            DiningCommon::Hamp => vec![Meal::Breakfast, Meal::Lunch, Meal::Dinner],
-            DiningCommon::Frank => vec![Meal::Breakfast, Meal::Lunch, Meal::Dinner], 
+            DiningCommon::Hamp | DiningCommon::Frank => {
+                vec![Meal::Breakfast, Meal::Lunch, Meal::Dinner]
+            }
             DiningCommon::Worcester => {
                 vec![Meal::Breakfast, Meal::Lunch, Meal::Dinner, Meal::LateNight]
             }
         };
         for meal in meals {
-            if is_on_menu(dining_common, meal, &food) {
-                places.push(format!("{:?} {:?}", dining_common.clone(), meal.clone()).to_string());
+            if is_on_menu(*dining_common, meal, food) {
+                places.push(
+                    format!(
+                        "{:?} {}: {}",
+                        dining_common,
+                        meal,
+                        get_on_menu(*dining_common, meal, food).join(", ")
+                    ).to_string(),
+                );
             }
         }
     }
 
     match places.len() {
         0 => format!("{} not found", food).to_string(),
-        _ => format!("{}: {}", food, places.join(", ")).to_string(),
+        _ => format!("{}: \n{}", food, places.join("\n")).to_string(),
     }
 }
 
 fn get_guilds() -> Vec<String> {
     let cache = serenity::CACHE.read().unwrap();
     let guilds = cache.all_guilds();
-    guilds.into_iter().map(|guild| guild.get().unwrap().name).collect()
+    guilds
+        .into_iter()
+        .map(|guild| guild.get().unwrap().name)
+        .collect()
 }
 
 struct Handler {
@@ -265,9 +289,9 @@ struct Handler {
 
 impl EventHandler for Handler {
     fn on_message(&self, _ctx: Context, message: Message) {
-        let listeners = self.listeners.clone();
+        let listeners = Arc::clone(&self.listeners);
 
-        if !message.content.starts_with("!") {
+        if !message.content.starts_with('!') {
             // It's not a command, so we don't care about it
             return;
         }
@@ -277,43 +301,60 @@ impl EventHandler for Handler {
             return;
         }
 
-        println!("{}: {} says: {}",
-                 message.author.name,
-                 message.author.id,
-                 message.content);
+        println!(
+            "{}: {} says: {}",
+            message.author.name, message.author.id, message.content
+        );
 
         let is_owner: bool = message.author.id == 90927967651262464;
 
         if message.content == "!events" {
-
             let events = get_events();
 
             // Intro
             let _ = message.channel_id.say("Today's events are:".to_string());
 
-            let _ = events.iter()
+            let _ = events
+                .iter()
                 .map(|event| message.channel_id.say(event.format().to_string()));
-
         } else if message.content.starts_with("!menu ") {
-            let item: String = message.content[6..].to_string();
+            let item: &str = &message.content[6..];
 
-            let _ = message.channel_id.say(format!("Checking for {}", item).to_string());
+            let _ = message
+                .channel_id
+                .say(format!("Checking for {}\n", item).to_string());
             let _ = message.channel_id.say(check_for(item));
         } else if message.content.starts_with("!register ") {
             let item: String = message.content[10..].to_string();
-            listeners.lock().unwrap().deref_mut().push((message.channel_id, item.clone()));
+            listeners
+                .lock()
+                .unwrap()
+                .deref_mut()
+                .push((message.channel_id, item.clone()));
             save_listeners(listeners.lock().unwrap().deref_mut());
-            let _ = message.channel_id.say(format!("Will check for {}", item).to_string());
+            let _ = message
+                .channel_id
+                .say(format!("Will check for {}", item).to_string());
         } else if message.content == "!help" {
             let _ = message.channel_id.say("UMass Bot help:");
-            let _ = message.channel_id
-                .say("```!menu [food name]     | tells you where that food is being served \
-                      today```");
-            let _ = message.channel_id
-                .say("```!register [food name] | schedules it to tell you each day where that \
-                      food is being served that day```");
+            let _ = message.channel_id.say(
+                "```!menu [food name]     | tells you where that food is being served \
+                 today```",
+            );
+            let _ = message.channel_id.say(
+                "```!register [food name] | schedules it to tell you each day where that \
+                 food is being served that day```",
+            );
+        } else if message.content == "!run" {
+            let _ = message.channel_id.say("Checking for preregistered foods");
+            check_for_foods(&listeners);
         } else if message.content.starts_with("!guilds") && is_owner {
-            let _ = message.channel_id.say(format!("Guilds: {}", get_guilds().join(", ")));
+            let _ = message
+                .channel_id
+                .say(format!("Guilds: {}", get_guilds().join(", ")));
+        } else if message.content.starts_with("!quit") && is_owner {
+            let _ = message.channel_id.say("UMass Bot Quitting");
+            std::process::exit(0);
         }
     }
 }
@@ -335,9 +376,11 @@ fn read_listeners() -> Vec<(serenity::model::ChannelId, String)> {
             continue;
         }
         let sections: Vec<&str> = line.split(' ').collect();
-        let id = serenity::model::ChannelId(sections[0]
-            .parse::<u64>()
-            .expect("Couldn't parse channel id"));
+        let id = serenity::model::ChannelId(
+            sections[0]
+                .parse::<u64>()
+                .expect("Couldn't parse channel id"),
+        );
         let food: String = sections[1..].join(" ").to_string();
         listeners.push((id, food));
     }
@@ -345,9 +388,9 @@ fn read_listeners() -> Vec<(serenity::model::ChannelId, String)> {
     listeners
 }
 
-fn save_listeners(vec: &Vec<(serenity::model::ChannelId, String)>) {
+fn save_listeners(pairs: &[(serenity::model::ChannelId, String)]) {
     let mut listeners_string: String = String::new();
-    vec.into_iter().for_each(|x| {
+    pairs.into_iter().for_each(|x| {
         let (ref id, ref food) = *x;
         listeners_string = format!("{}\n{} {}", listeners_string, id, food);
     });
@@ -366,16 +409,30 @@ fn save_listeners(vec: &Vec<(serenity::model::ChannelId, String)>) {
 fn get_time_till_scheduled() -> std::time::Duration {
     // The server the bot is deployed on is in UTC, so we have to adjust by 5 hours
     let current_time = time::now();
-    let mut next_midnight: time::Tm = (time::now() + time::Duration::days(1)).to_local();
-    if current_time.tm_hour < 11 || (current_time.tm_hour == 11 && current_time.tm_min < 5) {
-        // We want to do it today (in UTC) if it is still yesterday in Eastern Time
-        next_midnight = current_time.to_local();
-    }
+    let mut next_midnight: time::Tm =
+        if current_time.tm_hour < 11 || (current_time.tm_hour == 11 && current_time.tm_min < 5) {
+            // We want to do it today (in UTC) if it is still yesterday in Eastern Time
+            current_time.to_local()
+        } else {
+            (current_time + time::Duration::days(1)).to_local()
+        };
     next_midnight.tm_sec = 0;
     next_midnight.tm_min = 5;
     next_midnight.tm_hour = 11;
 
-    (next_midnight - time::now()).to_std().unwrap()
+    (next_midnight - current_time).to_std().unwrap()
+}
+
+fn check_for_foods(listeners: &Arc<Mutex<Vec<(ChannelId, String)>>>) {
+    listeners
+        .lock()
+        .unwrap()
+        .to_vec()
+        .into_iter()
+        .for_each(|(channel, food)| {
+            println!("Checking on {:?} for {}", channel, food);
+            let _ = channel.say(check_for(&food));
+        });
 }
 
 fn main() {
@@ -383,29 +440,21 @@ fn main() {
     openssl_probe::init_ssl_cert_env_vars();
 
     let listeners: Arc<Mutex<Vec<(ChannelId, String)>>> = Arc::new(Mutex::new(read_listeners()));
-    let mut client = login(listeners.clone());
+    let mut client = login(Arc::clone(&listeners));
     println!("Connected to Discord");
     println!("Connected to servers: {}", get_guilds().join(", "));
 
-
     // Listeners loop
-    let listeners_clone = listeners.clone();
+    let listeners_clone = Arc::clone(&listeners);
     thread::spawn(move || {
         let listeners = listeners_clone;
         loop {
             println!("Seconds till scheduled: {:?}", get_time_till_scheduled());
             thread::sleep(get_time_till_scheduled());
             println!("Checking for foods now!");
-            listeners.lock().unwrap().to_vec().into_iter().for_each(|(channel, food)| {
-                println!("Checking on {:?} for {}", channel, food);
-                let _ = channel.say(check_for(food));
-            });
+            check_for_foods(&listeners);
         }
     });
 
     let _ = client.start();
-
-
-
-
 }
