@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["gbear605 <developer@vivissi.com>"]
 
 [dependencies]
-serenity = "0.4.3"
+serenity = "0.5"
 reqwest = "0.8.0"
 select = "0.4.2"
 time = "0.1"
