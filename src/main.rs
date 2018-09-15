@@ -1,12 +1,22 @@
+extern crate chrono;
 extern crate reqwest;
 extern crate select;
 #[macro_use]
 extern crate serenity;
 
+use chrono::Timelike;
 use serenity::client::Client;
+use serenity::framework::StandardFramework;
+use serenity::http;
+use serenity::http::{get_guilds as other_get_guilds, GuildPagination};
 use serenity::model::channel::Message;
+use serenity::model::event::ResumedEvent;
 use serenity::model::id::ChannelId;
+use serenity::model::id::GuildId;
+use serenity::model::prelude::Ready;
 use serenity::prelude::*;
+
+use std::collections::HashSet;
 
 // For file reading
 use std::fs::File;
@@ -22,10 +32,15 @@ use std::thread;
 // Allow openssl crosscompiling to work
 extern crate openssl_probe;
 
-extern crate time;
-
 mod events;
 mod food;
+
+// Checks that a message successfully sent; if not, then logs why to stdout.
+fn check_msg(result: serenity::Result<Message>) {
+    if let Err(why) = result {
+        println!("Error sending message: {:?}", why);
+    }
+}
 
 // Get the token file from memory
 fn load_token() -> String {
@@ -42,12 +57,8 @@ fn login(listeners: Arc<Mutex<Vec<(ChannelId, String)>>>) -> Client {
 }
 
 fn get_guilds() -> Vec<String> {
-    let cache = serenity::CACHE.read();
-    let guilds = cache.all_guilds();
-    guilds
-        .into_iter()
-        .map(|guild| guild.to_partial_guild().unwrap().name)
-        .collect()
+    let guilds = other_get_guilds(&GuildPagination::After(GuildId(0)), 100).unwrap();
+    guilds.into_iter().map(|guild| guild.name).collect()
 }
 
 struct Handler {
@@ -55,6 +66,15 @@ struct Handler {
 }
 
 impl EventHandler for Handler {
+    fn ready(&self, _: Context, ready: Ready) {
+        println!("Connected to Discord as {}", ready.user.name);
+        println!("Connected to servers: {}", get_guilds().join(", "));
+    }
+
+    fn resume(&self, _: Context, _: ResumedEvent) {
+        println!("Resumed");
+    }
+
     fn message(&self, _ctx: Context, message: Message) {
         let listeners = Arc::clone(&self.listeners);
 
@@ -79,18 +99,20 @@ impl EventHandler for Handler {
             let events = events::get_events();
 
             // Intro
-            let _ = message.channel_id.say("Today's events are:".to_string());
+            check_msg(message.channel_id.say("Today's events are:".to_string()));
 
-            let _ = events
+            events
                 .iter()
-                .map(|event| message.channel_id.say(event.format().to_string()));
+                .for_each(|event| check_msg(message.channel_id.say(event.format().to_string())));
         } else if message.content.starts_with("!menu ") {
             let item: &str = &message.content[6..];
 
-            let _ = message
-                .channel_id
-                .say(format!("Checking for {}\n", item).to_string());
-            let _ = message.channel_id.say(food::check_for(item));
+            check_msg(
+                message
+                    .channel_id
+                    .say(format!("Checking for {}\n", item).to_string()),
+            );
+            check_msg(message.channel_id.say(food::check_for(item)));
         } else if message.content.starts_with("!register ") {
             let item: String = message.content[10..].to_string();
             listeners
@@ -99,28 +121,26 @@ impl EventHandler for Handler {
                 .deref_mut()
                 .push((message.channel_id, item.clone()));
             save_listeners(listeners.lock().unwrap().deref_mut());
-            let _ = message
-                .channel_id
-                .say(format!("Will check for {}", item).to_string());
+            check_msg(
+                message
+                    .channel_id
+                    .say(format!("Will check for {}", item).to_string()),
+            );
         } else if message.content == "!help" {
-            let _ = message.channel_id.say("UMass Bot help:");
-            let _ = message.channel_id.say(
+            check_msg(message.channel_id.say("UMass Bot help:"));
+            check_msg(message.channel_id.say(
                 "```!menu [food name]     | tells you where that food is being served \
                  today```",
-            );
-            let _ = message.channel_id.say(
+            ));
+            check_msg(message.channel_id.say(
                 "```!register [food name] | schedules it to tell you each day where that \
                  food is being served that day```",
-            );
+            ));
         } else if message.content == "!run" {
-            let _ = message.channel_id.say("Checking for preregistered foods");
+            check_msg(message.channel_id.say("Checking for preregistered foods"));
             check_for_foods(&listeners);
-        } else if message.content.starts_with("!guilds") && is_owner {
-            let _ = message
-                .channel_id
-                .say(format!("Guilds: {}", get_guilds().join(", ")));
         } else if message.content.starts_with("!quit") && is_owner {
-            let _ = message.channel_id.say("UMass Bot Quitting");
+            check_msg(message.channel_id.say("UMass Bot Quitting"));
             std::process::exit(0);
         }
     }
@@ -172,22 +192,27 @@ fn save_listeners(pairs: &[(ChannelId, String)]) {
         .write_all(listeners_string.as_bytes());
 }
 
-// Runs at 6 AM
+// Runs at 6 AM in summer or 5 AM in winter
 fn get_time_till_scheduled() -> std::time::Duration {
-    // The server the bot is deployed on is in UTC, so we have to adjust by 5 hours
-    let current_time = time::now();
-    let mut next_midnight: time::Tm =
-        if current_time.tm_hour < 11 || (current_time.tm_hour == 11 && current_time.tm_min < 5) {
-            // We want to do it today (in UTC) if it is still yesterday in Eastern Time
-            current_time.to_local()
-        } else {
-            (current_time + time::Duration::days(1)).to_local()
-        };
-    next_midnight.tm_sec = 0;
-    next_midnight.tm_min = 5;
-    next_midnight.tm_hour = 11;
+    let current_time_utc = chrono::prelude::Utc::now();
+    let current_time: chrono::DateTime<chrono::offset::FixedOffset> = chrono::DateTime::from_utc(
+        current_time_utc.naive_utc(),
+        chrono::offset::FixedOffset::west(4 * 60 * 60),
+        // Four hours west of the date line
+        // Four instead of five because 5am/6am is a better default than 6am/7am
+    );
+    let next_run_date = if current_time.time().hour() < 6
+        || (current_time.hour() == 6 && current_time.minute() < 5)
+    {
+        // We want to do it today (in UTC) if it is still yesterday in Eastern Time
+        current_time
+    } else {
+        current_time + chrono::Duration::days(1)
+    }.date();
 
-    (next_midnight - current_time).to_std().unwrap()
+    let next_run = next_run_date.and_hms(6, 5, 0);
+
+    (next_run - current_time).to_std().unwrap()
 }
 
 fn check_for_foods(listeners: &Arc<Mutex<Vec<(ChannelId, String)>>>) {
@@ -198,7 +223,7 @@ fn check_for_foods(listeners: &Arc<Mutex<Vec<(ChannelId, String)>>>) {
         .into_iter()
         .for_each(|(channel, food)| {
             println!("Checking on {:?} for {}", channel, food);
-            let _ = channel.say(food::check_for(&food));
+            check_msg(channel.say(food::check_for(&food)));
         });
 }
 
@@ -209,8 +234,26 @@ fn main() {
     let listeners: Arc<Mutex<Vec<(ChannelId, String)>>> = Arc::new(Mutex::new(read_listeners()));
     let mut client = login(Arc::clone(&listeners));
 
-    println!("Connected to Discord");
-    println!("Connected to servers: {}", get_guilds().join(", "));
+    let owners = match http::get_current_application_info() {
+        Ok(info) => {
+            let mut set = HashSet::new();
+            set.insert(info.owner.id);
+
+            set
+        }
+        Err(why) => panic!("Couldn't get application info: {:?}", why),
+    };
+
+    println!("{:?}", owners);
+
+    client.with_framework(
+        StandardFramework::new()
+            .configure(|c| c.owners(owners).prefix("!"))
+            .command(
+                "guilds",
+                |c| c.cmd(guildsCommand), /*.owners_only(true)*/
+            ),
+    );
 
     // Listeners loop
     let listeners_clone = Arc::clone(&listeners);
@@ -224,5 +267,11 @@ fn main() {
         }
     });
 
-    let _ = client.start();
+    if let Err(why) = client.start() {
+        println!("Client error: {:?}", why);
+    }
 }
+
+command!(guildsCommand(_context, message) {
+    check_msg(message.reply(&format!("Guilds: {}", get_guilds().join(", "))))
+});

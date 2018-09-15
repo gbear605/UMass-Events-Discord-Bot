@@ -5,7 +5,7 @@ authors = ["gbear605 <developer@vivissi.com>"]
 
 [dependencies]
 serenity = "0.5"
-reqwest = "0.8.0"
+reqwest = "0.8.8"
 select = "0.4.2"
-time = "0.1"
-openssl-probe = "0.1.1"
+chrono = "0.4.6"
+openssl-probe = "0.1.2"
