@@ -41,3 +41,4 @@ The built file will be in ``target/x86_64-unknown-linux-musl/release``
 * Fix !events
 * Add !time that says how long until the next scheduled food announcement
 * Allow authorized users (ie. gbear605) to make announcements to all servers the bot is on
+* Allow manual input of food for future days, for late night menus.
