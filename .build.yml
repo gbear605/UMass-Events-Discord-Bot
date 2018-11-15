@@ -1,7 +1,5 @@
-image: debian/stretch
+image: archlinux
 packages:
-  - libssl-dev
-  - pkgconf
   - cargo
 sources: 
   - https://git.sr.ht/~gbear605/umass_discord_bot

@@ -9,3 +9,4 @@ reqwest = "0.8.8"
 select = "0.4.2"
 chrono = "0.4.6"
 openssl-probe = "0.1.2"
+openssl = { version = "0.10", feature = ["vendored"] }
