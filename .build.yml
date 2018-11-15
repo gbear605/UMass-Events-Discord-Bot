@@ -1,0 +1,9 @@
+image: archlinux
+packages:
+  - cargo
+sources: 
+  - https://git.sr.ht/~gbear605/umass_discord_bot
+tasks:
+  - build: |
+    cd umass_discord_bot
+    cargo build
