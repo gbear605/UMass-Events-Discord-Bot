@@ -1,9 +1,29 @@
-image: archlinux
+image: debian/stretch
 packages:
-  - cargo
+  - build-essential
+  - cmake
+  - curl
+  - file
+  - git
+  - libssl-dev
+  - pkgconf
+  - sudo
 sources: 
   - https://git.sr.ht/~gbear605/umass_discord_bot
+# Based on rust-musl-builder
 tasks:
+  - install-rust: |
+      curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable'
+  - install-openssl: |
+      echo "Building OpenSSL"
+      cd /tmp
+      OPENSSL_VERSION=1.0.2o
+      curl -LO "https://www.openssl.org/source/openssl-$OPENSSL_VERSION.tar.gz"
+      tar xvzf "openssl-$OPENSSL_VERSION.tar.gz" && cd "openssl-$OPENSSL_VERSION"
+      make
+      sudo make install
+      cd ..
+      rm -r /tmp/*
   - build: |
       cd umass_discord_bot
       cargo build
