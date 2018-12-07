@@ -1,6 +1,7 @@
 [package]
 name = "umass_events_discord"
 version = "0.1.0"
+edition = "2018"
 authors = ["gbear605 <developer@vivissi.com>"]
 
 [dependencies]

@@ -1,4 +1,4 @@
-use events::get_document;
+use crate::events::get_document;
 
 use select::document::Document;
 use select::predicate::Attr;
