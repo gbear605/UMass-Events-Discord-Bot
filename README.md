@@ -16,15 +16,21 @@ Docker needs to be installed.
 
 1) Set the alias for the builder:
 
-``alias rust-musl-builder='docker run --rm -it -v "$(pwd)":/home/rust/src ekidd/rust-musl-builder'``
+``alias rust-musl-builder='docker run --rm -it -v cargo-git:/home/rust/.cargo/git -v cargo-registry:/home/rust/.cargo/registry -v "$(pwd)":/home/rust/src ekidd/rust-musl-builder'``
 
-2) Start the Docker daemon (if it isn't already running)
+2) Set up the file cache: (speeds up build time)
 
-3) Build: (this will download a linux docker image to compile in if it is not already downloaded)
+``rust-musl-builder sudo chown -R rust:rust /home/rust/.cargo/git /home/rust/.cargo/registry``
 
-Expect the build step to take a while (roughly a minute) each time after the first.
+3) Start the Docker daemon (if it isn't already running)
+
+4) Build: (this will download a linux docker image to compile in if it is not already downloaded)
+
+Expect the build step to initially take about fifteen minutes, then to take a while (roughly a minute) each time after the first.
 
 ``rust-musl-builder cargo build --release``
+
+To update the container, run ``docker pull ekidd/rust-musl-builder``
 
 The built file will be in ``target/x86_64-unknown-linux-musl/release``
 
