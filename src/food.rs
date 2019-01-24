@@ -1,11 +1,12 @@
 use crate::events::get_document;
+use chrono::Date;
+use std::ops::DerefMut;
+use std::sync::{Arc, Mutex};
 
 use select::document::Document;
 use select::predicate::Attr;
 use select::predicate::Class;
 use select::predicate::Predicate;
-
-use reqwest;
 
 use std::fmt;
 
@@ -24,9 +25,12 @@ pub enum Meal {
     LateNight,
 }
 
+type InternalFoodStore = (Date<FixedOffset>, DiningCommonsDocs);
+pub type FoodStore = Arc<Mutex<InternalFoodStore>>;
+
 use self::Meal::*;
 
-fn get_day_of_week() -> Weekday {
+pub fn get_date() -> Date<FixedOffset> {
     let current_time_utc = Utc::now();
     let current_time: DateTime<FixedOffset> = DateTime::from_utc(
         current_time_utc.naive_utc(),
@@ -35,7 +39,11 @@ fn get_day_of_week() -> Weekday {
         // Four instead of five because 5am/6am is a better default than 6am/7am
     );
 
-    current_time.date().weekday()
+    current_time.date()
+}
+
+fn get_day_of_week() -> Weekday {
+    get_date().weekday()
 }
 
 impl fmt::Display for Meal {
@@ -65,6 +73,13 @@ pub enum DiningCommon {
     Worcester,
 }
 
+pub struct DiningCommonsDocs {
+    berk: String,
+    hamp: String,
+    frank: String,
+    worcester: String,
+}
+
 use self::DiningCommon::*;
 
 fn get_meal_code(meal: Meal) -> String {
@@ -73,7 +88,8 @@ fn get_meal_code(meal: Meal) -> String {
         Lunch => "lunch_menu",
         Dinner => "dinner_menu",
         LateNight => "latenight_menu",
-    }.to_string()
+    }
+    .to_string()
 }
 
 fn get_dining_common_code(dining_common: DiningCommon) -> String {
@@ -82,10 +98,11 @@ fn get_dining_common_code(dining_common: DiningCommon) -> String {
         Frank => "franklin",
         Hamp => "hampshire",
         Berk => "berkshire",
-    }.to_string()
+    }
+    .to_string()
 }
 
-fn get_menu_document(dining_common: DiningCommon) -> Result<Document, reqwest::Error> {
+pub fn get_menu_no_cache(dining_common: DiningCommon) -> String {
     let dining_common_id = get_dining_common_code(dining_common);
 
     let url: &str = &format!(
@@ -95,12 +112,41 @@ fn get_menu_document(dining_common: DiningCommon) -> Result<Document, reqwest::E
 
     println!("{}", url);
 
-    get_document(url)
+    get_document(url).unwrap()
 }
 
-pub fn get_on_menu(dining_common: DiningCommon, meal: Meal, item: &str) -> Vec<String> {
-    let nodes: Vec<String> = get_menu_document(dining_common)
-        .expect("Couldn't get the menu page")
+pub fn get_menus_no_cache() -> DiningCommonsDocs {
+    DiningCommonsDocs {
+        berk: get_menu_no_cache(Berk),
+        hamp: get_menu_no_cache(Hamp),
+        frank: get_menu_no_cache(Frank),
+        worcester: get_menu_no_cache(Worcester),
+    }
+}
+
+fn get_menu_document(dining_common: DiningCommon, store: &FoodStore) -> Document {
+    let mut unlocked_store = store.lock().unwrap();
+    let store: &mut InternalFoodStore = unlocked_store.deref_mut();
+    if store.0 != get_date() {
+        store.0 = get_date();
+        store.1 = get_menus_no_cache();
+    }
+
+    Document::from(&*match dining_common {
+        Berk => store.1.berk.clone(),
+        Hamp => store.1.hamp.clone(),
+        Frank => store.1.frank.clone(),
+        Worcester => store.1.worcester.clone(),
+    })
+}
+
+pub fn get_on_menu(
+    dining_common: DiningCommon,
+    meal: Meal,
+    item: &str,
+    store: &FoodStore,
+) -> Vec<String> {
+    let nodes: Vec<String> = get_menu_document(dining_common, store)
         .find(Attr("id", &get_meal_code(meal)[..]).descendant(Attr("id", "content_text")))
         .nth(0)
         .expect("Couldn't find the menu items on page")
@@ -114,7 +160,10 @@ pub fn get_on_menu(dining_common: DiningCommon, meal: Meal, item: &str) -> Vec<S
         .filter(|text| text.contains(item.to_lowercase().as_str()))
         .collect();
 
-    println!("{}", filtered.join(" "));
+    let found = filtered.join(" ");
+    if found != String::new() {
+        println!("{}", found);
+    }
 
     filtered
 }
@@ -141,13 +190,13 @@ fn which_meals(dc: DiningCommon) -> Vec<Meal> {
     }
 }
 
-pub fn check_for(food: &str) -> String {
+pub fn check_for(food: &str, store: &FoodStore) -> String {
     let mut places: Vec<String> = vec![];
 
     for dining_common in &[Berk, Hamp, Frank, Worcester] {
         let meals = which_meals(*dining_common);
         for meal in meals {
-            let food_on_menu = get_on_menu(*dining_common, meal, food);
+            let food_on_menu = get_on_menu(*dining_common, meal, food, &store);
             if !food_on_menu.is_empty() {
                 places.push(
                     format!("{:?} {}: {}", dining_common, meal, food_on_menu.join(", "))

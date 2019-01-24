@@ -1,6 +1,9 @@
 /target/
 **/*.rs.bk
-token
+discord_token
+discord_token_actual
+telegram_token
+telegram_token_actual
 .DS_Store
 README_SSH.md
 listeners.txt

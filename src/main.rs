@@ -1,8 +1,12 @@
 extern crate chrono;
+extern crate futures;
 extern crate reqwest;
 extern crate select;
 extern crate serenity;
+extern crate telegram_bot_fork;
+extern crate tokio;
 
+// For discord
 use chrono::Timelike;
 use serenity::client::Client;
 use serenity::http;
@@ -26,6 +30,12 @@ use std::ops::DerefMut;
 use std::sync::{Arc, Mutex};
 use std::thread;
 
+// For telegram
+use futures::{future::lazy, Stream};
+use telegram_bot_fork::*;
+
+use food::FoodStore;
+
 // Allow openssl crosscompiling to work
 extern crate openssl_probe;
 
@@ -34,7 +44,7 @@ mod food;
 
 enum Message {
     Discord(serenity::model::channel::Message),
-    //Telegram(telegram_bot::types::requests::SendMessage)
+    //Telegram(telegram_bot_fork::types::requests::SendMessage),
 }
 
 // Checks that a message successfully sent; if not, then logs why to stdout.
@@ -44,27 +54,52 @@ fn check_msg<T>(result: serenity::Result<T>) {
     }
 }
 
-// Get the token file from memory
-fn load_token() -> String {
-    let mut token = String::new();
-    let _ = File::open("token")
-        .expect("No token file")
-        .read_to_string(&mut token);
-    token
-}
-
 // Represents either a discord channel or a telegram message chat
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum Channel {
     Discord(ChannelId),
-    //Telegram(MessageChat),
+    Telegram(TelegramChannel),
+}
+
+#[derive(Debug, Clone)]
+enum TelegramChannel {
+    ChannelId(telegram_bot_fork::types::ChannelId),
+    ChatMessage(telegram_bot_fork::types::MessageChat),
+}
+
+impl TelegramChannel {
+    fn to_chat_ref(&self) -> ChatRef {
+        match self {
+            TelegramChannel::ChannelId(id) => id.to_chat_ref(),
+            TelegramChannel::ChatMessage(msg) => msg.to_chat_ref(),
+        }
+    }
+
+    fn to_id(&self) -> i64 {
+        match self.to_chat_ref() {
+            ChatRef::Id(id) => id.into(),
+            ChatRef::ChannelUsername(ref user) => panic!("Can't handle channel username"),
+        }
+    }
 }
 
 impl Channel {
-    fn send_message(&self, message: String) -> serenity::Result<Message> {
+    fn send_message(&self, message: String, telegram_token: &str, sent_from_telegram: bool) {
         match self {
             Channel::Discord(channel_id) => {
-                channel_id.say(message).map(|msg| Message::Discord(msg))
+                check_msg(channel_id.say(message).map(|msg| Message::Discord(msg)));
+            }
+            Channel::Telegram(channel_id) => {
+                let api = Api::new(telegram_token).unwrap();
+                let send_message = channel_id.to_chat_ref().text(message);
+                if sent_from_telegram {
+                    api.spawn(send_message);
+                } else {
+                    tokio::runtime::current_thread::Runtime::new()
+                        .unwrap()
+                        .block_on(lazy(|| api.send(send_message)))
+                        .unwrap();
+                }
             }
         }
     }
@@ -74,21 +109,40 @@ impl std::fmt::Display for Channel {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Channel::Discord(id) => id.fmt(f),
+            Channel::Telegram(id) => write!(f, "{:?}", id),
         }
     }
 }
 
-impl std::clone::Clone for Channel {
-    fn clone(&self) -> Channel {
-        match self {
-            Channel::Discord(id) => Channel::Discord(id.clone()),
-        }
-    }
+// Get the discord token file from memory
+fn load_discord_token() -> String {
+    let mut token = String::new();
+    let _ = File::open("discord_token")
+        .expect("No token file")
+        .read_to_string(&mut token);
+    token
+}
+
+// Get the telegram token file from memory
+fn load_telegram_token() -> String {
+    let mut token = String::new();
+    let _ = File::open("telegram_token")
+        .expect("No token file")
+        .read_to_string(&mut token);
+    token.trim().to_string()
 }
 
 // Login to Discord and connect
-fn login_discord(listeners: Arc<Mutex<Vec<(Channel, String)>>>) -> Client {
-    Client::new(load_token().trim(), Handler { listeners }).expect("Error creating client")
+fn login_discord(listeners: Arc<Mutex<Vec<(Channel, String)>>>, store: FoodStore) -> Client {
+    Client::new(
+        load_discord_token().trim(),
+        Handler {
+            listeners,
+            telegram_token: load_telegram_token(),
+            store: store,
+        },
+    )
+    .expect("Error creating client")
 }
 
 fn get_guilds() -> Vec<String> {
@@ -98,16 +152,20 @@ fn get_guilds() -> Vec<String> {
 
 struct Handler {
     listeners: Arc<Mutex<Vec<(Channel, String)>>>,
+    telegram_token: String,
+    store: FoodStore,
 }
 
 enum UserId {
     Discord(serenity::model::id::UserId),
+    Telegram(telegram_bot_fork::types::UserId),
 }
 
 impl std::fmt::Display for UserId {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             UserId::Discord(id) => id.fmt(f),
+            UserId::Telegram(id) => id.fmt(f),
         }
     }
 }
@@ -120,6 +178,10 @@ struct User {
     // In discord, uniqueName is "name#discriminator"
     // Neither of these are constant for a user
     unique_name: String,
+    // In telegram, name is "first_name";
+    // In discord, name is "name"
+    // Neither of these are constant for a user or unique
+    name: String,
     // Whether this user is an admin of the bot
     is_owner: bool,
 }
@@ -129,7 +191,28 @@ impl User {
         User {
             id: UserId::Discord(message.author.id),
             unique_name: format!("{}#{}", message.author.name, message.author.discriminator),
+            name: message.author.name.clone(),
             is_owner: message.author.id == 90_927_967_651_262_464,
+        }
+    }
+
+    fn from_telegram_message(user: telegram_bot_fork::types::User) -> User {
+        let full_name = match (user.last_name, user.username) {
+            (None, None) => user.first_name.clone(),
+            (None, Some(username)) => format!("{} ({})", user.first_name, username),
+            (Some(last_name), None) => format!("{} {}", user.first_name, last_name),
+            (Some(last_name), Some(username)) => {
+                format!("{} {} ({})", user.first_name, last_name, username)
+            }
+        };
+
+        let name = user.first_name;
+
+        User {
+            id: UserId::Telegram(user.id),
+            unique_name: full_name,
+            name: name,
+            is_owner: user.id.to_string() == "698919547",
         }
     }
 
@@ -138,25 +221,33 @@ impl User {
             UserId::Discord(id) => {
                 Ok(serenity::http::raw::get_current_application_info()?.id == id)
             }
+            UserId::Telegram(_id) => {
+                Ok(false) // TODO
+            }
         }
     }
 }
 
-fn handle_message(
+fn handle_message<'a>(
     content: String,
     author: User,
     channel: Channel,
     listeners: Arc<Mutex<Vec<(Channel, String)>>>,
-) -> serenity::Result<()> {
+    telegram_api: &str,
+    started_by_telegram: bool,
+    store: FoodStore,
+) -> Option<SendMessage<'a>> {
     if !content.starts_with('!') {
         // It's not a command, so we don't care about it
-        return Ok(());
+        return None;
     }
 
     // We don't want to respond to ourselves
     // For instance, this would cause issues with !help
-    if author.is_self()? {
-        return Ok(());
+    if let Ok(val) = author.is_self() {
+        if val {
+            return None;
+        }
     }
 
     println!("{}: {} says: {}", author.unique_name, author.id, content);
@@ -165,16 +256,23 @@ fn handle_message(
         let events = events::get_events();
 
         // Intro
-        channel.send_message("Today's events are:".to_string())?;
+        channel.send_message(
+            "Today's events are:".to_string(),
+            telegram_api,
+            started_by_telegram,
+        );
 
         for event in events {
-            channel.send_message(event.format())?;
+            channel.send_message(event.format(), telegram_api, started_by_telegram);
         }
     } else if content.starts_with("!menu ") {
         let item: &str = &content[6..];
 
-        channel.send_message(format!("Checking for {}\n", item).to_string())?;
-        channel.send_message(food::check_for(item))?;
+        channel.send_message(
+            food::check_for(item, &store),
+            telegram_api,
+            started_by_telegram,
+        );
     } else if content.starts_with("!register ") {
         let item: String = content[10..].to_string();
         listeners
@@ -183,29 +281,62 @@ fn handle_message(
             .deref_mut()
             .push((channel.clone(), item.clone()));
         save_listeners(listeners.lock().unwrap().deref_mut());
-        channel.send_message(format!("Will check for {}", item).to_string())?;
+        channel.send_message(
+            format!("Will check for {}", item).to_string(),
+            telegram_api,
+            started_by_telegram,
+        );
     } else if content == "!help" {
-        channel.send_message("UMass Bot help:".to_string())?;
+        match channel {
+            Channel::Discord(_) => {
+                channel.send_message(
+                    "```!menu [food name]     | tells you where that food is being served \
+                     today```"
+                        .to_string(),
+                    telegram_api,
+                    started_by_telegram,
+                );
 
-        channel.send_message(
-            "```!menu [food name]     | tells you where that food is being served \
-             today```"
-                .to_string(),
-        )?;
+                channel.send_message(
+                    "```!register [food name] | schedules it to tell you each day where that \
+                     food is being served that day```"
+                        .to_string(),
+                    telegram_api,
+                    started_by_telegram,
+                );
+            }
+            Channel::Telegram(_) => {
+                channel.send_message(
+                    "!menu [food name] => tells you where that food is being served today"
+                        .to_string(),
+                    telegram_api,
+                    started_by_telegram,
+                );
 
-        channel.send_message(
-            "```!register [food name] | schedules it to tell you each day where that \
-             food is being served that day```"
-                .to_string(),
-        )?;
+                channel.send_message(
+                    "!register [food name] => schedules it to tell you each day where that food is being served that day"
+                        .to_string(),
+                    telegram_api,
+                    started_by_telegram,
+                );
+            }
+        }
     } else if content == "!run" {
-        channel.send_message("Checking for preregistered foods".to_string())?;
-        check_for_foods(&listeners);
+        channel.send_message(
+            "Checking for preregistered foods".to_string(),
+            telegram_api,
+            started_by_telegram,
+        );
+        check_for_foods(&listeners, telegram_api, started_by_telegram, &store);
     } else if content.starts_with("!quit") && author.is_owner {
-        channel.send_message("UMass Bot Quitting".to_string())?;
+        channel.send_message(
+            "UMass Bot Quitting".to_string(),
+            telegram_api,
+            started_by_telegram,
+        );
         std::process::exit(0);
     }
-    return Ok(());
+    return None;
 }
 
 impl EventHandler for Handler {
@@ -220,11 +351,20 @@ impl EventHandler for Handler {
 
     // Discord specific
     fn message(&self, _ctx: Context, message: serenity::model::channel::Message) {
+        let store = Arc::clone(&self.store);
         let listeners = Arc::clone(&self.listeners);
         let author = User::from_discord_message(&message);
         let content = message.content.clone();
         let channel = Channel::Discord(message.channel_id);
-        check_msg(handle_message(content, author, channel, listeners));
+        handle_message(
+            content,
+            author,
+            channel,
+            listeners,
+            &self.telegram_token,
+            false,
+            store,
+        );
     }
 }
 
@@ -245,12 +385,24 @@ fn read_listeners() -> Vec<(Channel, String)> {
             continue;
         }
         let sections: Vec<&str> = line.split(' ').collect();
-        let id = Channel::Discord(ChannelId(
-            sections[0]
-                .parse::<u64>()
-                .expect("Couldn't parse channel id"),
-        ));
-        let food: String = sections[1..].join(" ").to_string();
+        let app = sections[0];
+        let id = if app == "discord" {
+            Channel::Discord(ChannelId(
+                sections[1]
+                    .parse::<u64>()
+                    .expect("Couldn't parse channel id"),
+            ))
+        } else {
+            Channel::Telegram(TelegramChannel::ChannelId(
+                telegram_bot_fork::types::ChannelId(
+                    sections[1]
+                        .parse::<i64>()
+                        .expect("Couldn\'t parse channel id"),
+                ),
+            ))
+        };
+
+        let food: String = sections[2..].join(" ").to_string();
         listeners.push((id, food));
     }
 
@@ -260,9 +412,17 @@ fn read_listeners() -> Vec<(Channel, String)> {
 fn save_listeners(pairs: &[(Channel, String)]) {
     let mut listeners_string: String = String::new();
     pairs.into_iter().for_each(|x| {
-        let (ref id, ref food) = *x;
-        listeners_string = format!("{}\n{} {}", listeners_string, id, food);
+        listeners_string = match *x {
+            (Channel::Discord(ref id), ref food) => {
+                format!("{}discord {} {}\n", listeners_string, id, food)
+            }
+            (Channel::Telegram(ref id), ref food) => {
+                format!("{}telegram {} {}\n", listeners_string, id.to_id(), food)
+            }
+        };
     });
+
+    listeners_string.trim();
 
     let _ = OpenOptions::new()
         .read(true)
@@ -298,7 +458,12 @@ fn get_time_till_scheduled() -> std::time::Duration {
     (next_run - current_time).to_std().unwrap()
 }
 
-fn check_for_foods(listeners: &Arc<Mutex<Vec<(Channel, String)>>>) {
+fn check_for_foods(
+    listeners: &Arc<Mutex<Vec<(Channel, String)>>>,
+    telegram_api: &str,
+    started_by_telegram: bool,
+    store: &FoodStore,
+) {
     listeners
         .lock()
         .unwrap()
@@ -306,7 +471,11 @@ fn check_for_foods(listeners: &Arc<Mutex<Vec<(Channel, String)>>>) {
         .into_iter()
         .for_each(|(channel, food)| {
             println!("Checking on {:?} for {}", channel, food);
-            check_msg(channel.send_message(food::check_for(&food)));
+            channel.send_message(
+                food::check_for(&food, &store),
+                telegram_api,
+                started_by_telegram,
+            );
         });
 }
 
@@ -315,8 +484,11 @@ fn main() {
     openssl_probe::init_ssl_cert_env_vars();
 
     let listeners: Arc<Mutex<Vec<(Channel, String)>>> = Arc::new(Mutex::new(read_listeners()));
-    let mut discord_client = login_discord(Arc::clone(&listeners));
 
+    let store: FoodStore = Arc::new(Mutex::new((food::get_date(), food::get_menus_no_cache())));
+
+    // Setup discord
+    let mut discord_client = login_discord(Arc::clone(&listeners), Arc::clone(&store));
     let owners = match http::get_current_application_info() {
         Ok(info) => {
             let mut set = HashSet::new();
@@ -327,20 +499,72 @@ fn main() {
         Err(why) => panic!("Couldn't get application info: {:?}", why),
     };
 
-    println!("{:?}", owners);
+    println!("Owners: {:?}", owners);
+
+    let telegram_token = load_telegram_token();
 
     // Listeners loop
+    let listeners_clone = Arc::clone(&listeners);
+    let store_clone = Arc::clone(&store);
+    let telegram_token_clone = telegram_token.clone();
     thread::spawn(move || {
-        let listeners = listeners;
+        let listeners = listeners_clone;
+        let store = store_clone;
+        let telegram_token = telegram_token_clone;
         loop {
             println!("Seconds till scheduled: {:?}", get_time_till_scheduled());
             thread::sleep(get_time_till_scheduled());
             println!("Checking for foods now!");
-            check_for_foods(&listeners);
+            check_for_foods(&listeners, &telegram_token, false, &store);
         }
     });
 
-    if let Err(why) = discord_client.start() {
-        println!("Discord client error: {:?}", why);
-    }
+    // Start telegram loop
+    thread::spawn(move || {
+        if let Err(why) = discord_client.start() {
+            println!("Discord client error: {:?}", why);
+        }
+    });
+
+    tokio::runtime::current_thread::Runtime::new()
+        .unwrap()
+        .block_on(lazy(|| {
+            let api = Api::new(telegram_token.clone()).unwrap();
+
+            let stream = api.stream().then(|mb_update| {
+                let res: Result<Result<Update, Error>, ()> = Ok(mb_update);
+                res
+            });
+
+            // Fetch new updates via long poll method
+            stream.for_each(move |update| {
+                match update {
+                    Ok(update) => {
+                        // If the received update contains a new message...
+                        if let UpdateKind::Message(message) = update.kind {
+                            println!("Some message {:?}", message);
+                            if let MessageKind::Text { ref data, .. } = message.kind {
+                                handle_message(
+                                    data.to_string(),
+                                    User::from_telegram_message(message.from),
+                                    Channel::Telegram(TelegramChannel::ChatMessage(message.chat)),
+                                    Arc::clone(&listeners),
+                                    &telegram_token,
+                                    true,
+                                    Arc::clone(&store),
+                                );
+                            }
+                        } else {
+                            println!("Some update {:?}", update);
+                        }
+                    }
+                    Err(e) => {
+                        println!("Some error {:?}", e);
+                    }
+                }
+
+                Ok(())
+            })
+        }))
+        .unwrap();
 }

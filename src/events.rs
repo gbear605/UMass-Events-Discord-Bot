@@ -26,18 +26,19 @@ impl UMassEvent {
     }
 }
 
-pub fn get_document(url: &str) -> Result<Document, reqwest::Error> {
+pub fn get_document(url: &str) -> Result<String, reqwest::Error> {
     reqwest::get(url).map(|mut response| {
         // Extract the data from the http request
         let mut content = String::new();
         let _ = response.read_to_string(&mut content);
-        Document::from(&*content)
+        content
     })
 }
 
 pub fn get_events() -> Vec<UMassEvent> {
     let document =
         get_document("http://www.umass.edu/events/").expect("Couldn't get the events page");
+    let document = Document::from(&*document);
 
     // Parse the data into a list of events
     document
@@ -83,5 +84,6 @@ pub fn get_events() -> Vec<UMassEvent> {
                 date,
                 location,
             }
-        }).collect()
+        })
+        .collect()
 }
