@@ -42,11 +42,6 @@ extern crate openssl_probe;
 mod events;
 mod food;
 
-enum Message {
-    Discord(serenity::model::channel::Message),
-    //Telegram(telegram_bot_fork::types::requests::SendMessage),
-}
-
 // Checks that a message successfully sent; if not, then logs why to stdout.
 fn check_msg<T>(result: serenity::Result<T>) {
     if let Err(why) = result {
@@ -78,7 +73,7 @@ impl TelegramChannel {
     fn to_id(&self) -> i64 {
         match self.to_chat_ref() {
             ChatRef::Id(id) => id.into(),
-            ChatRef::ChannelUsername(ref user) => panic!("Can't handle channel username"),
+            ChatRef::ChannelUsername(_user) => panic!("Can't handle channel username"),
         }
     }
 }
@@ -87,7 +82,7 @@ impl Channel {
     fn send_message(&self, message: String, telegram_token: &str, sent_from_telegram: bool) {
         match self {
             Channel::Discord(channel_id) => {
-                check_msg(channel_id.say(message).map(|msg| Message::Discord(msg)));
+                check_msg(channel_id.say(message));
             }
             Channel::Telegram(channel_id) => {
                 let api = Api::new(telegram_token).unwrap();
@@ -178,10 +173,6 @@ struct User {
     // In discord, uniqueName is "name#discriminator"
     // Neither of these are constant for a user
     unique_name: String,
-    // In telegram, name is "first_name";
-    // In discord, name is "name"
-    // Neither of these are constant for a user or unique
-    name: String,
     // Whether this user is an admin of the bot
     is_owner: bool,
 }
@@ -191,7 +182,6 @@ impl User {
         User {
             id: UserId::Discord(message.author.id),
             unique_name: format!("{}#{}", message.author.name, message.author.discriminator),
-            name: message.author.name.clone(),
             is_owner: message.author.id == 90_927_967_651_262_464,
         }
     }
@@ -206,13 +196,10 @@ impl User {
             }
         };
 
-        let name = user.first_name;
-
         User {
             id: UserId::Telegram(user.id),
             unique_name: full_name,
-            name: name,
-            is_owner: user.id.to_string() == "698919547",
+            is_owner: user.id.0 == 698919547,
         }
     }
 
@@ -222,13 +209,14 @@ impl User {
                 Ok(serenity::http::raw::get_current_application_info()?.id == id)
             }
             UserId::Telegram(_id) => {
-                Ok(false) // TODO
+                Ok(false)
+                // isn't needed, since it doesn't get messages from itself, unlike with Discord
             }
         }
     }
 }
 
-fn handle_message<'a>(
+fn handle_message(
     content: String,
     author: User,
     channel: Channel,
@@ -236,23 +224,22 @@ fn handle_message<'a>(
     telegram_api: &str,
     started_by_telegram: bool,
     store: FoodStore,
-) -> Option<SendMessage<'a>> {
-    if !content.starts_with('!') {
+) {
+    println!("{}: {} says: {}", author.unique_name, author.id, content);
+    if !content.starts_with('!') && !content.starts_with('/') {
         // It's not a command, so we don't care about it
-        return None;
+        return;
     }
 
     // We don't want to respond to ourselves
     // For instance, this would cause issues with !help
     if let Ok(val) = author.is_self() {
         if val {
-            return None;
+            return;
         }
     }
 
-    println!("{}: {} says: {}", author.unique_name, author.id, content);
-
-    if content == "!events" {
+    if content == "!events" || content == "/events" {
         let events = events::get_events();
 
         // Intro
@@ -265,7 +252,7 @@ fn handle_message<'a>(
         for event in events {
             channel.send_message(event.format(), telegram_api, started_by_telegram);
         }
-    } else if content.starts_with("!menu ") {
+    } else if content.starts_with("!menu ") || content.starts_with("/menu ") {
         let item: &str = &content[6..];
 
         channel.send_message(
@@ -273,7 +260,7 @@ fn handle_message<'a>(
             telegram_api,
             started_by_telegram,
         );
-    } else if content.starts_with("!register ") {
+    } else if content.starts_with("!register ") || content.starts_with("/register ") {
         let item: String = content[10..].to_string();
         listeners
             .lock()
@@ -286,7 +273,7 @@ fn handle_message<'a>(
             telegram_api,
             started_by_telegram,
         );
-    } else if content == "!help" {
+    } else if content == "!help" || content == "/help" {
         match channel {
             Channel::Discord(_) => {
                 channel.send_message(
@@ -307,28 +294,28 @@ fn handle_message<'a>(
             }
             Channel::Telegram(_) => {
                 channel.send_message(
-                    "!menu [food name] => tells you where that food is being served today"
+                    "/menu [food name] => tells you where that food is being served today"
                         .to_string(),
                     telegram_api,
                     started_by_telegram,
                 );
 
                 channel.send_message(
-                    "!register [food name] => schedules it to tell you each day where that food is being served that day"
+                    "/register [food name] => schedules it to tell you each day where that food is being served that day"
                         .to_string(),
                     telegram_api,
                     started_by_telegram,
                 );
             }
         }
-    } else if content == "!run" {
+    } else if content == "!run" || content == "/run" {
         channel.send_message(
             "Checking for preregistered foods".to_string(),
             telegram_api,
             started_by_telegram,
         );
         check_for_foods(&listeners, telegram_api, started_by_telegram, &store);
-    } else if content.starts_with("!quit") && author.is_owner {
+    } else if (content.starts_with("!quit") || content.starts_with("/quit")) && author.is_owner {
         channel.send_message(
             "UMass Bot Quitting".to_string(),
             telegram_api,
@@ -336,7 +323,6 @@ fn handle_message<'a>(
         );
         std::process::exit(0);
     }
-    return None;
 }
 
 impl EventHandler for Handler {

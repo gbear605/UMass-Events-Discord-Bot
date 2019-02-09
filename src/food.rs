@@ -23,6 +23,7 @@ pub enum Meal {
     Lunch,
     Dinner,
     LateNight,
+    GrabAndGo,
 }
 
 type InternalFoodStore = (Date<FixedOffset>, DiningCommonsDocs);
@@ -54,12 +55,14 @@ impl fmt::Display for Meal {
                 Lunch => "Lunch",
                 Dinner => "Dinner",
                 LateNight => "Late Night",
+                GrabAndGo => "Grab n' Go",
             },
             Sat | Sun => match self {
                 Breakfast => "Breakfast",
                 Lunch => "Brunch",
                 Dinner => "Dinner",
                 LateNight => "Late Night",
+                GrabAndGo => "Grab n' Go",
             },
         })
     }
@@ -88,6 +91,7 @@ fn get_meal_code(meal: Meal) -> String {
         Lunch => "lunch_menu",
         Dinner => "dinner_menu",
         LateNight => "latenight_menu",
+        GrabAndGo => "grabngo",
     }
     .to_string()
 }
@@ -171,13 +175,13 @@ pub fn get_on_menu(
 fn which_meals(dc: DiningCommon) -> Vec<Meal> {
     match get_day_of_week() {
         Mon | Tue | Wed | Thu => match dc {
-            Berk => vec![Lunch, Dinner, LateNight],
-            Hamp | Frank => vec![Breakfast, Lunch, Dinner],
-            Worcester => vec![Breakfast, Lunch, Dinner, LateNight],
+            Berk => vec![Lunch, Dinner, LateNight, GrabAndGo],
+            Hamp | Frank => vec![Breakfast, Lunch, Dinner, GrabAndGo],
+            Worcester => vec![Breakfast, Lunch, Dinner, LateNight, GrabAndGo],
         },
         Fri => match dc {
-            Berk => vec![Lunch, Dinner, LateNight],
-            Hamp | Frank | Worcester => vec![Breakfast, Lunch, Dinner],
+            Berk => vec![Lunch, Dinner, LateNight, GrabAndGo],
+            Hamp | Frank | Worcester => vec![Breakfast, Lunch, Dinner, GrabAndGo],
         },
         Sat => match dc {
             Berk => vec![Lunch, Dinner, LateNight],
