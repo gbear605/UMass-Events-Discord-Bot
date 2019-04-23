@@ -273,6 +273,13 @@ fn handle_message(
             telegram_api,
             started_by_telegram,
         );
+
+        // We also want to check if the food is being served today
+        channel.send_message(
+            food::check_for(&item, &store),
+            telegram_api,
+            started_by_telegram,
+        );
     } else if content == "!help" || content == "/help" {
         match channel {
             Channel::Discord(_) => {
