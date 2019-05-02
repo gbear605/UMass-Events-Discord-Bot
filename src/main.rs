@@ -147,7 +147,7 @@ fn login_discord(listeners: Arc<Mutex<Vec<(Channel, String)>>>, store: FoodStore
         Handler {
             listeners,
             telegram_token: load_telegram_token(),
-            store: store,
+            store,
         },
     )
     .expect("Error creating client")
@@ -212,7 +212,7 @@ impl User {
         User {
             id: UserId::Telegram(user.id),
             unique_name: full_name,
-            is_owner: user.id.0 == 698919547,
+            is_owner: user.id.0 == 698_919_547,
         }
     }
 
@@ -417,7 +417,7 @@ fn read_listeners() -> Vec<(Channel, String)> {
 
 fn save_listeners(pairs: &[(Channel, String)]) {
     let mut listeners_string: String = String::new();
-    pairs.into_iter().for_each(|x| {
+    pairs.iter().for_each(|x| {
         listeners_string = match *x {
             (Channel::Discord(ref id), ref food) => {
                 format!("{}discord {} {}\n", listeners_string, id, food)
@@ -607,11 +607,9 @@ fn main() {
         });
 
         run_telegram_client(telegram_token.unwrap(), listeners, store);
-    } else {
-        if run_telegram {
-            run_telegram_client(telegram_token.unwrap(), listeners, store);
-        } else if run_discord {
-            run_discord_client(discord_client.unwrap());
-        }
+    } else if run_telegram {
+        run_telegram_client(telegram_token.unwrap(), listeners, store);
+    } else if run_discord {
+        run_discord_client(discord_client.unwrap());
     }
 }
