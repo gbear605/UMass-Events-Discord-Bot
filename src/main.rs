@@ -36,6 +36,9 @@ use telegram_bot_fork::*;
 
 use food::FoodStore;
 
+// For commandline args
+use std::env;
+
 // Allow openssl crosscompiling to work
 extern crate openssl_probe;
 
@@ -79,12 +82,22 @@ impl TelegramChannel {
 }
 
 impl Channel {
-    fn send_message(&self, message: String, telegram_token: &str, sent_from_telegram: bool) {
+    fn send_message(
+        &self,
+        message: String,
+        telegram_token: Option<&str>,
+        sent_from_telegram: bool,
+    ) {
         match self {
             Channel::Discord(channel_id) => {
                 check_msg(channel_id.say(message));
             }
             Channel::Telegram(channel_id) => {
+                if telegram_token.is_none() {
+                    println!("Trying to send message to telegram when not connected to telegram!");
+                    return;
+                }
+                let telegram_token = telegram_token.unwrap();
                 let api = Api::new(telegram_token).unwrap();
                 let send_message = channel_id.to_chat_ref().text(message);
                 if sent_from_telegram {
@@ -221,7 +234,7 @@ fn handle_message(
     author: User,
     channel: Channel,
     listeners: Arc<Mutex<Vec<(Channel, String)>>>,
-    telegram_api: &str,
+    telegram_api: Option<&str>,
     started_by_telegram: bool,
     store: FoodStore,
 ) {
@@ -354,7 +367,7 @@ impl EventHandler for Handler {
             author,
             channel,
             listeners,
-            &self.telegram_token,
+            Some(&self.telegram_token),
             false,
             store,
         );
@@ -415,7 +428,7 @@ fn save_listeners(pairs: &[(Channel, String)]) {
         };
     });
 
-    listeners_string.trim();
+    let listeners_string = listeners_string.trim();
 
     let _ = OpenOptions::new()
         .read(true)
@@ -453,7 +466,7 @@ fn get_time_till_scheduled() -> std::time::Duration {
 
 fn check_for_foods(
     listeners: &Arc<Mutex<Vec<(Channel, String)>>>,
-    telegram_api: &str,
+    telegram_api: Option<&str>,
     started_by_telegram: bool,
     store: &FoodStore,
 ) {
@@ -472,53 +485,17 @@ fn check_for_foods(
         });
 }
 
-fn main() {
-    // Allow openssl crosscompiling to work
-    openssl_probe::init_ssl_cert_env_vars();
+fn run_discord_client(mut client: Client) {
+    if let Err(why) = client.start() {
+        println!("Discord client error: {:?}", why);
+    }
+}
 
-    let listeners: Arc<Mutex<Vec<(Channel, String)>>> = Arc::new(Mutex::new(read_listeners()));
-
-    let store: FoodStore = Arc::new(Mutex::new((food::get_date(), food::get_menus_no_cache())));
-
-    // Setup discord
-    let mut discord_client = login_discord(Arc::clone(&listeners), Arc::clone(&store));
-    let owners = match http::get_current_application_info() {
-        Ok(info) => {
-            let mut set = HashSet::new();
-            set.insert(info.owner.id);
-
-            set
-        }
-        Err(why) => panic!("Couldn't get application info: {:?}", why),
-    };
-
-    println!("Owners: {:?}", owners);
-
-    let telegram_token = load_telegram_token();
-
-    // Listeners loop
-    let listeners_clone = Arc::clone(&listeners);
-    let store_clone = Arc::clone(&store);
-    let telegram_token_clone = telegram_token.clone();
-    thread::spawn(move || {
-        let listeners = listeners_clone;
-        let store = store_clone;
-        let telegram_token = telegram_token_clone;
-        loop {
-            println!("Seconds till scheduled: {:?}", get_time_till_scheduled());
-            thread::sleep(get_time_till_scheduled());
-            println!("Checking for foods now!");
-            check_for_foods(&listeners, &telegram_token, false, &store);
-        }
-    });
-
-    // Start telegram loop
-    thread::spawn(move || {
-        if let Err(why) = discord_client.start() {
-            println!("Discord client error: {:?}", why);
-        }
-    });
-
+fn run_telegram_client(
+    telegram_token: String,
+    listeners: Arc<Mutex<Vec<(Channel, String)>>>,
+    store: FoodStore,
+) {
     tokio::runtime::current_thread::Runtime::new()
         .unwrap()
         .block_on(lazy(|| {
@@ -542,7 +519,7 @@ fn main() {
                                     User::from_telegram_message(message.from),
                                     Channel::Telegram(TelegramChannel::ChatMessage(message.chat)),
                                     Arc::clone(&listeners),
-                                    &telegram_token,
+                                    Some(&telegram_token),
                                     true,
                                     Arc::clone(&store),
                                 );
@@ -560,4 +537,81 @@ fn main() {
             })
         }))
         .unwrap();
+}
+
+fn main() {
+    // Allow openssl crosscompiling to work
+    openssl_probe::init_ssl_cert_env_vars();
+
+    // Decide whether or not to run telegram or discord connection
+    // This is useful for testing
+    let args: Vec<String> = env::args().collect();
+    let run_telegram = !args.contains(&"--no-telegram".to_string());
+    let run_discord = !args.contains(&"--no-discord".to_string());
+
+    if !run_discord && !run_telegram {
+        return;
+    }
+
+    let listeners: Arc<Mutex<Vec<(Channel, String)>>> = Arc::new(Mutex::new(read_listeners()));
+
+    let store: FoodStore = Arc::new(Mutex::new((food::get_date(), food::get_menus_no_cache())));
+
+    // Setup discord
+    let discord_client = if run_discord {
+        Some(login_discord(Arc::clone(&listeners), Arc::clone(&store)))
+    } else {
+        None
+    };
+
+    if run_discord {
+        let owners = match http::get_current_application_info() {
+            Ok(info) => {
+                let mut set = HashSet::new();
+                set.insert(info.owner.id);
+
+                set
+            }
+            Err(why) => panic!("Couldn't get application info: {:?}", why),
+        };
+
+        println!("Owners: {:?}", owners);
+    }
+
+    let telegram_token = if run_telegram {
+        Some(load_telegram_token())
+    } else {
+        None
+    };
+
+    // Listeners loop
+    let listeners_clone = Arc::clone(&listeners);
+    let store_clone = Arc::clone(&store);
+    let telegram_token_clone = telegram_token.clone();
+    thread::spawn(move || {
+        let listeners = listeners_clone;
+        let store = store_clone;
+        loop {
+            let telegram_token = telegram_token_clone.clone();
+            println!("Seconds till scheduled: {:?}", get_time_till_scheduled());
+            thread::sleep(get_time_till_scheduled());
+            println!("Checking for foods now!");
+            check_for_foods(&listeners, Some(&telegram_token.unwrap()), false, &store);
+        }
+    });
+
+    if run_telegram && run_discord {
+        // Start discord loop
+        thread::spawn(move || {
+            run_discord_client(discord_client.unwrap());
+        });
+
+        run_telegram_client(telegram_token.unwrap(), listeners, store);
+    } else {
+        if run_telegram {
+            run_telegram_client(telegram_token.unwrap(), listeners, store);
+        } else if run_discord {
+            run_discord_client(discord_client.unwrap());
+        }
+    }
 }
