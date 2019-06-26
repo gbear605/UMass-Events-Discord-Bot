@@ -427,31 +427,27 @@ impl EventHandler for Handler {
         let author = User::from_discord_message(&message);
         let content = message.content.clone();
         let channel = Channel::Discord(message.channel_id);
-        if self.telegram_token.is_none() {
-            handle_message(
-                content,
-                author,
-                channel,
-                listeners,
-                None,
-                false,
-                food_store,
-                room_store,
-                Some(&ctx),
-            );
-        } else {
-            handle_message(
-                content,
-                author,
-                channel,
-                listeners,
-                Some(&self.telegram_token.clone().unwrap()),
-                false,
-                food_store,
-                room_store,
-                Some(&ctx),
-            );
-        }
+
+        let telegram_token_clone: String;
+        let telegram_token = match self.telegram_token.clone() {
+            None => None,
+            Some(s) => {
+                telegram_token_clone = s.clone();
+                Some(telegram_token_clone.as_str())
+            }
+        };
+
+        handle_message(
+            content,
+            author,
+            channel,
+            listeners,
+            telegram_token,
+            false,
+            food_store,
+            room_store,
+            Some(&ctx),
+        );
     }
 }
 
