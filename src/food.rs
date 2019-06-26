@@ -175,20 +175,20 @@ pub fn get_on_menu(
 fn which_meals(dc: DiningCommon) -> Vec<Meal> {
     match get_day_of_week() {
         Mon | Tue | Wed | Thu => match dc {
-            Berk => vec![Lunch, Dinner, LateNight, GrabAndGo],
-            Hamp | Frank => vec![Breakfast, Lunch, Dinner, GrabAndGo],
-            Worcester => vec![Breakfast, Lunch, Dinner, LateNight, GrabAndGo],
+            Berk => vec![Lunch, Dinner, /*LateNight,*/ GrabAndGo],
+            Hamp | Frank => vec![Breakfast, Lunch, Dinner /* GrabAndGo*/],
+            Worcester => vec![Breakfast, Lunch, Dinner, /*LateNight*/ GrabAndGo],
         },
         Fri => match dc {
-            Berk => vec![Lunch, Dinner, LateNight, GrabAndGo],
-            Hamp | Frank | Worcester => vec![Breakfast, Lunch, Dinner, GrabAndGo],
+            Berk => vec![Lunch, Dinner, /*LateNight,*/ GrabAndGo],
+            Hamp | Frank | Worcester => vec![Breakfast, Lunch, Dinner /*, GrabAndGo*/],
         },
         Sat => match dc {
-            Berk => vec![Lunch, Dinner, LateNight],
+            Berk => vec![Lunch, Dinner /*LateNight*/],
             Hamp | Frank | Worcester => vec![Lunch, Dinner],
         },
         Sun => match dc {
-            Berk | Worcester => vec![Lunch, Dinner, LateNight],
+            Berk | Worcester => vec![Lunch, Dinner /*LateNight*/],
             Hamp | Frank => vec![Lunch, Dinner],
         },
     }
@@ -197,7 +197,7 @@ fn which_meals(dc: DiningCommon) -> Vec<Meal> {
 pub fn check_for(food: &str, store: &FoodStore) -> String {
     let mut places: Vec<String> = vec![];
 
-    for dining_common in &[Berk, Hamp, Frank, Worcester] {
+    for dining_common in &[Berk, /*Hamp,*/ Frank /*Worcester*/] {
         let meals = which_meals(*dining_common);
         for meal in meals {
             let food_on_menu = get_on_menu(*dining_common, meal, food, &store);
