@@ -4,6 +4,14 @@ version = "0.1.0"
 edition = "2018"
 authors = ["gbear605 <developer@vivissi.com>"]
 
+[[bin]]
+name = "server"
+path = "src/server/main.rs"
+
+[[bin]]
+name = "client"
+path = "src/client/main.rs"
+
 [dependencies]
 serenity = "0.6"
 telegram-bot = { git = "https://github.com/telegram-rs/telegram-bot"}

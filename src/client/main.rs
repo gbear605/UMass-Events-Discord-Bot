@@ -1,5 +1,6 @@
 extern crate chrono;
 extern crate futures;
+extern crate openssl_probe;
 extern crate reqwest;
 extern crate select;
 extern crate serenity;
@@ -39,9 +40,6 @@ use rooms::RoomStore;
 
 // For commandline args
 use std::env;
-
-// Allow openssl crosscompiling to work
-extern crate openssl_probe;
 
 use std::time::Duration;
 
