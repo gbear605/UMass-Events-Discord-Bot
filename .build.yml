@@ -23,7 +23,7 @@ tasks:
       cargo build --bin telegram_client --release
       cargo build --bin discord_client --release
       cargo build --bin server --release
-      ls target
+      ls target/release
   - deploy: |
       scp -o StrictHostKeyChecking=no target/release/server root@greenwichmeanti.me:~/umass_bot/server 
       scp -o StrictHostKeyChecking=no target/release/discord_client root@greenwichmeanti.me:~/umass_bot/discord_client 
