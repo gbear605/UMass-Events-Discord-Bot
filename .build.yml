@@ -1,24 +1,30 @@
-image: debian/stretch
+image: archlinux
 packages:
-  - build-essential
   - cmake
   - curl
   - file
   - git
-  - libssl-dev
   - pkgconf
   - sudo
 sources: 
   - https://git.sr.ht/~gbear605/umass_discord_bot
+secrets:
+  - 0755116a-2598-41d7-b910-e8d6d97410b3
 tasks:
   # Based on rust-musl-builder
   # needed because debain ships old rust versions
   - install-rust: |
       curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly
       source $HOME/.cargo/env
+      sudo pacman --noconfirm -S pkg-config openssl
   - build: |
       source $HOME/.cargo/env
       cd umass_discord_bot
       cargo build --bin telegram_client --release
       cargo build --bin discord_client --release
       cargo build --bin server --release
+      ls target
+  - deploy: |
+      scp -o StrictHostKeyChecking=no target/release/server root@greenwichmeanti.me:~/umass_bot/server 
+      scp -o StrictHostKeyChecking=no target/release/discord_client root@greenwichmeanti.me:~/umass_bot/discord_client 
+      scp -o StrictHostKeyChecking=no target/release/telegram_client root@greenwichmeanti.me:~/umass_bot/telegram_client 

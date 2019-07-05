@@ -16,7 +16,7 @@ Docker needs to be installed.
 
 1) Set the alias for the builder:
 
-``alias rust-musl-builder='docker run --rm -it -v cargo-git:/home/rust/.cargo/git -v cargo-registry:/home/rust/.cargo/registry -v "$(pwd)":/home/rust/src ekidd/rust-musl-builder:nightly-2019-06-08-openssl11'``
+``alias rust-musl-builder='docker run --rm -it -v cargo-git:/home/rust/.cargo/git -v cargo-registry:/home/rust/.cargo/registry -v "$(pwd)":/home/rust/src ekidd/rust-musl-builder:nightly-2019-06-08'``
 
 2) Start the Docker daemon (if it isn't already running)
 
@@ -32,7 +32,7 @@ Expect the build step to initially take about fifteen minutes, then to take a wh
 ``rust-musl-builder cargo build --bin discord_client --release``
 ``rust-musl-builder cargo build --bin server --release``
 
-To update the container, run ``docker pull ekidd/rust-musl-builder:nightly-2019-06-08-openssl11``
+To update the container, run ``docker pull ekidd/rust-musl-builder:nightly-2019-06-08``
 
 The built files will be in ``target/x86_64-unknown-linux-musl/release``
 

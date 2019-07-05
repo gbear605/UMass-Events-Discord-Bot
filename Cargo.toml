@@ -1,6 +1,6 @@
 [package]
-name = "umass_client"
-version = "0.1.0"
+name = "umass_bot"
+version = "0.2.0"
 edition = "2018"
 authors = ["gbear605 <developer@vivissi.com>"]
 
@@ -9,6 +9,7 @@ telegram-bot = { git = "https://github.com/telegram-rs/telegram-bot" }
 reqwest = "0.8.8"
 select = "0.4.2"
 chrono = "0.4.6"
+openssl = { version = "0.10", features = ["vendored"] }
 openssl-probe = "0.1.2"
 tokio = "^0.1"
 tokio-core = "^0.1"

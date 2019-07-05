@@ -136,12 +136,12 @@ impl EventHandler for Handler {
 
             send_message(channel, format!("{}", response), &ctx);
         } else if content.starts_with("!echo ") {
-            let item: String = content[5..].to_string();
+            let input: String = content[5..].to_string();
 
             let client = reqwest::Client::new();
             let mut res = client
-                .post("http://localhost:8000/echo")
-                .body(item)
+                .get("http://localhost:8000/echo/")
+                .query(&[("input", input)])
                 .send()
                 .unwrap();
 
