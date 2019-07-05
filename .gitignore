@@ -6,5 +6,6 @@ telegram_token
 telegram_token_actual
 .DS_Store
 README_SSH.md
-listeners.txt
+discord_listeners.txt
+telegram_listeners.txt
 token_actual
