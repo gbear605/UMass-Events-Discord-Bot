@@ -31,6 +31,10 @@ pub type FoodStore = Arc<Mutex<InternalFoodStore>>;
 
 use self::Meal::*;
 
+pub fn get_store() -> FoodStore {
+    Arc::new(Mutex::new((get_date(), get_menus_no_cache())))
+}
+
 pub fn get_date() -> Date<FixedOffset> {
     let current_time_utc = Utc::now();
     let current_time: DateTime<FixedOffset> = DateTime::from_utc(
@@ -175,21 +179,22 @@ pub fn get_on_menu(
 fn which_meals(dc: DiningCommon) -> Vec<Meal> {
     match get_day_of_week() {
         Mon | Tue | Wed | Thu => match dc {
-            Berk => vec![Lunch, Dinner, /*LateNight,*/ GrabAndGo],
-            Hamp | Frank => vec![Breakfast, Lunch, Dinner /* GrabAndGo*/],
-            Worcester => vec![Breakfast, Lunch, Dinner, /*LateNight*/ GrabAndGo],
+            Berk => vec![Lunch, Dinner /*LateNight, GrabAndGo*/],
+            Hamp | Frank => vec![], //vec![Breakfast, Lunch, Dinner /* GrabAndGo*/],
+            Worcester => vec![],    //vec![Breakfast, Lunch, Dinner, /*LateNight*/ GrabAndGo],
         },
         Fri => match dc {
-            Berk => vec![Lunch, Dinner, /*LateNight,*/ GrabAndGo],
-            Hamp | Frank | Worcester => vec![Breakfast, Lunch, Dinner /*, GrabAndGo*/],
+            Berk => vec![Lunch, Dinner /*LateNight, GrabAndGo*/],
+            Hamp | Frank | Worcester => vec![], //vec![Breakfast, Lunch, Dinner /*, GrabAndGo*/],
         },
         Sat => match dc {
             Berk => vec![Lunch, Dinner /*LateNight*/],
-            Hamp | Frank | Worcester => vec![Lunch, Dinner],
+            Hamp | Frank | Worcester => vec![], //vec![Lunch, Dinner],
         },
         Sun => match dc {
-            Berk | Worcester => vec![Lunch, Dinner /*LateNight*/],
-            Hamp | Frank => vec![Lunch, Dinner],
+            Berk => vec![Lunch, Dinner /*LateNight*/],
+            Worcester => vec![],    //vec![Lunch, Dinner /*LateNight*/],
+            Hamp | Frank => vec![], //vec![Lunch, Dinner],
         },
     }
 }

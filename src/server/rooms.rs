@@ -3,8 +3,6 @@ use serde::de::{self, Visitor};
 use serde::Deserialize;
 
 use std::collections::HashMap;
-use std::sync::Arc;
-use std::sync::Mutex;
 
 use std::fs::File;
 use std::io::Read;

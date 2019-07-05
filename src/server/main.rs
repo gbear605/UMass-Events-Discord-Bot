@@ -3,13 +3,15 @@
 #[macro_use]
 extern crate rocket;
 
+mod events;
+mod food;
 mod rooms;
+
+use food::FoodStore;
 
 use rocket::State;
 use rooms::load_sections_map;
 use rooms::RoomStore;
-
-use std::str;
 
 #[post("/", data = "<input>")]
 fn echo(input: String) -> String {
@@ -25,10 +27,17 @@ fn room(room_store: State<RoomStore>, room: String) -> String {
     }
 }
 
+#[get("/?<food>")]
+fn food(food_store: State<FoodStore>, food: String) -> String {
+    food::check_for(&food, &food_store)
+}
+
 fn main() {
     rocket::ignite()
         .manage(load_sections_map())
+        .manage(food::get_store())
         .mount("/echo", routes![echo])
         .mount("/room", routes![room])
+        .mount("/food", routes![food])
         .launch();
 }

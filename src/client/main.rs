@@ -36,17 +36,12 @@ use std::thread;
 use futures::{future::lazy, Stream};
 use telegram_bot::*;
 
-use food::FoodStore;
-
 // For commandline args
 use std::env;
 
 use std::time::Duration;
 
 use tokio_core::reactor::Core;
-
-mod events;
-mod food;
 
 // Checks that a message successfully sent; if not, then logs why to stdout.
 fn check_msg<T>(result: serenity::Result<T>) {
@@ -112,6 +107,17 @@ impl Channel {
     }
 }
 
+fn check_food(food: String) -> String {
+    let client = reqwest::Client::new();
+    client
+        .get("http://localhost:8000/food/")
+        .query(&[("food", food)])
+        .send()
+        .unwrap()
+        .text()
+        .unwrap()
+}
+
 impl std::fmt::Display for Channel {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -143,14 +149,12 @@ fn load_telegram_token() -> String {
 fn login_discord(
     listeners: Arc<Mutex<Vec<(Channel, String)>>>,
     telegram_token: Option<String>,
-    food_store: FoodStore,
 ) -> Client {
     Client::new(
         load_discord_token().trim(),
         Handler {
             listeners,
             telegram_token,
-            food_store,
         },
     )
     .expect("Error creating client")
@@ -167,7 +171,6 @@ fn get_guilds(ctx: Context) -> Vec<String> {
 struct Handler {
     listeners: Arc<Mutex<Vec<(Channel, String)>>>,
     telegram_token: Option<String>,
-    food_store: FoodStore,
 }
 
 enum UserId {
@@ -242,7 +245,6 @@ fn handle_message(
     listeners: Arc<Mutex<Vec<(Channel, String)>>>,
     telegram_api: Option<&str>,
     started_by_telegram: bool,
-    food_store: FoodStore,
     ctx: Option<&Context>,
 ) {
     println!("{}: {} says: {}", author.unique_name, author.id, content);
@@ -259,25 +261,13 @@ fn handle_message(
         }
     }
 
-    if content == "!events" || content == "/events" {
-        let events = events::get_events();
-
-        // Intro
-        channel.send_message(
-            "Today's events are:".to_string(),
-            telegram_api,
-            started_by_telegram,
-            ctx,
-        );
-
-        for event in events {
-            channel.send_message(event.format(), telegram_api, started_by_telegram, ctx);
-        }
-    } else if content.starts_with("!menu ") || content.starts_with("/menu ") {
+    if content.starts_with("!menu ") || content.starts_with("/menu ") {
         let item: &str = &content[6..];
 
+        let response = check_food(item.to_string());
+
         channel.send_message(
-            food::check_for(item, &food_store),
+            format!("{}", response),
             telegram_api,
             started_by_telegram,
             ctx,
@@ -313,9 +303,10 @@ fn handle_message(
             ctx,
         );
 
-        // We also want to check if the food is being served today
+        let response = check_food(item.to_string());
+
         channel.send_message(
-            food::check_for(&item, &food_store),
+            format!("{}", response),
             telegram_api,
             started_by_telegram,
             ctx,
@@ -382,13 +373,7 @@ fn handle_message(
             started_by_telegram,
             ctx,
         );
-        check_for_foods(
-            &listeners,
-            telegram_api,
-            started_by_telegram,
-            &food_store,
-            ctx,
-        );
+        check_for_foods(&listeners, telegram_api, started_by_telegram, ctx);
     } else if (content.starts_with("!quit") || content.starts_with("/quit")) && author.is_owner {
         channel.send_message(
             "UMass Bot Quitting".to_string(),
@@ -412,7 +397,6 @@ impl EventHandler for Handler {
 
     // Discord specific
     fn message(&self, ctx: Context, message: serenity::model::channel::Message) {
-        let food_store = Arc::clone(&self.food_store);
         let listeners = Arc::clone(&self.listeners);
         let author = User::from_discord_message(&message);
         let content = message.content.clone();
@@ -434,7 +418,6 @@ impl EventHandler for Handler {
             listeners,
             telegram_token,
             false,
-            food_store,
             Some(&ctx),
         );
     }
@@ -534,7 +517,6 @@ fn check_for_foods(
     listeners: &Arc<Mutex<Vec<(Channel, String)>>>,
     telegram_api: Option<&str>,
     started_by_telegram: bool,
-    store: &FoodStore,
     ctx: Option<&Context>,
 ) {
     listeners
@@ -544,8 +526,10 @@ fn check_for_foods(
         .into_iter()
         .for_each(|(channel, food)| {
             println!("Checking on {:?} for {}", channel, food);
+            let response = check_food(food);
+
             channel.send_message(
-                food::check_for(&food, &store),
+                format!("{}", response),
                 telegram_api,
                 started_by_telegram,
                 ctx,
@@ -559,11 +543,7 @@ fn run_discord_client(mut client: Client) {
     }
 }
 
-fn run_telegram_client(
-    telegram_token: &str,
-    listeners: Arc<Mutex<Vec<(Channel, String)>>>,
-    food_store: FoodStore,
-) {
+fn run_telegram_client(telegram_token: &str, listeners: Arc<Mutex<Vec<(Channel, String)>>>) {
     let mut core = Core::new().unwrap();
     let handle = core.handle();
 
@@ -591,7 +571,6 @@ fn run_telegram_client(
                             Arc::clone(&listeners),
                             Some(telegram_token),
                             true,
-                            Arc::clone(&food_store),
                             None,
                         );
                     }
@@ -626,9 +605,6 @@ fn main() {
 
     let listeners: Arc<Mutex<Vec<(Channel, String)>>> = Arc::new(Mutex::new(read_listeners()));
 
-    let food_store: FoodStore =
-        Arc::new(Mutex::new((food::get_date(), food::get_menus_no_cache())));
-
     let telegram_token = if run_telegram {
         Some(load_telegram_token())
     } else {
@@ -637,11 +613,7 @@ fn main() {
 
     // Setup discord
     let discord_client = if run_discord {
-        let client = login_discord(
-            Arc::clone(&listeners),
-            telegram_token.clone(),
-            Arc::clone(&food_store),
-        );
+        let client = login_discord(Arc::clone(&listeners), telegram_token.clone());
 
         let owners = match client.cache_and_http.http.get_current_application_info() {
             Ok(info) => {
@@ -662,11 +634,9 @@ fn main() {
 
     // Listeners loop
     let listeners_clone = Arc::clone(&listeners);
-    let food_store_clone = Arc::clone(&food_store);
     let telegram_token_clone = telegram_token.clone();
     thread::spawn(move || {
         let listeners = listeners_clone;
-        let food_store = food_store_clone;
         loop {
             let telegram_token = telegram_token_clone.clone();
             println!("Seconds till scheduled: {:?}", get_time_till_scheduled());
@@ -676,7 +646,6 @@ fn main() {
                 &listeners,
                 Some(&telegram_token.unwrap()),
                 false,
-                &food_store,
                 None, //TODO: this needs to be Some for Discord
             );
         }
@@ -688,9 +657,9 @@ fn main() {
             run_discord_client(discord_client.unwrap());
         });
 
-        run_telegram_client(&telegram_token.unwrap(), listeners, food_store);
+        run_telegram_client(&telegram_token.unwrap(), listeners);
     } else if run_telegram {
-        run_telegram_client(&telegram_token.unwrap(), listeners, food_store);
+        run_telegram_client(&telegram_token.unwrap(), listeners);
     } else if run_discord {
         run_discord_client(discord_client.unwrap());
     }
