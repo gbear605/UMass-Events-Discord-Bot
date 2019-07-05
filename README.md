@@ -34,7 +34,7 @@ Expect the build step to initially take about fifteen minutes, then to take a wh
 
 To update the container, run ``docker pull ekidd/rust-musl-builder:nightly-2019-06-08-openssl11``
 
-The built file will be in ``target/x86_64-unknown-linux-musl/release``
+The built files will be in ``target/x86_64-unknown-linux-musl/release``
 
 ## Commands
 

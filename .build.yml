@@ -14,9 +14,11 @@ tasks:
   # Based on rust-musl-builder
   # needed because debain ships old rust versions
   - install-rust: |
-      curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable
+      curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly
       source $HOME/.cargo/env
   - build: |
       source $HOME/.cargo/env
       cd umass_discord_bot
-      cargo build
+      cargo build --bin telegram_client --release
+      cargo build --bin discord_client --release
+      cargo build --bin server --release
