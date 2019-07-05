@@ -23,6 +23,7 @@ use std::collections::HashSet;
 // For file reading
 use std::fs::File;
 use std::fs::OpenOptions;
+use std::io;
 use std::io::Read;
 use std::io::Write;
 
@@ -36,7 +37,6 @@ use futures::{future::lazy, Stream};
 use telegram_bot::*;
 
 use food::FoodStore;
-use rooms::RoomStore;
 
 // For commandline args
 use std::env;
@@ -47,7 +47,6 @@ use tokio_core::reactor::Core;
 
 mod events;
 mod food;
-mod rooms;
 
 // Checks that a message successfully sent; if not, then logs why to stdout.
 fn check_msg<T>(result: serenity::Result<T>) {
@@ -145,7 +144,6 @@ fn login_discord(
     listeners: Arc<Mutex<Vec<(Channel, String)>>>,
     telegram_token: Option<String>,
     food_store: FoodStore,
-    room_store: RoomStore,
 ) -> Client {
     Client::new(
         load_discord_token().trim(),
@@ -153,7 +151,6 @@ fn login_discord(
             listeners,
             telegram_token,
             food_store,
-            room_store,
         },
     )
     .expect("Error creating client")
@@ -171,7 +168,6 @@ struct Handler {
     listeners: Arc<Mutex<Vec<(Channel, String)>>>,
     telegram_token: Option<String>,
     food_store: FoodStore,
-    room_store: RoomStore,
 }
 
 enum UserId {
@@ -247,7 +243,6 @@ fn handle_message(
     telegram_api: Option<&str>,
     started_by_telegram: bool,
     food_store: FoodStore,
-    room_store: RoomStore,
     ctx: Option<&Context>,
 ) {
     println!("{}: {} says: {}", author.unique_name, author.id, content);
@@ -283,6 +278,22 @@ fn handle_message(
 
         channel.send_message(
             food::check_for(item, &food_store),
+            telegram_api,
+            started_by_telegram,
+            ctx,
+        );
+    } else if content.starts_with("!echo ") || content.starts_with("/echo ") {
+        let item: String = content[5..].to_string();
+
+        let client = reqwest::Client::new();
+        let mut res = client
+            .post("http://localhost:8000/echo")
+            .body(item)
+            .send()
+            .unwrap();
+
+        channel.send_message(
+            format!("{}", res.text().unwrap()),
             telegram_api,
             started_by_telegram,
             ctx,
@@ -351,37 +362,19 @@ fn handle_message(
     } else if content.starts_with("!room ") || content.starts_with("/room ") {
         let room: String = content[6..].to_string();
 
-        let room_store = room_store.lock().unwrap();
+        let client = reqwest::Client::new();
+        let mut res = client
+            .get("http://localhost:8000/room/")
+            .query(&[("room", room)])
+            .send()
+            .unwrap();
 
-        if !room_store.contains_key(&room) {
-            channel.send_message(
-                format!("Room {} not found on SPIRE", room).to_string(),
-                telegram_api,
-                started_by_telegram,
-                ctx,
-            )
-        } else {
-            channel.send_message(
-                format!("Room {}: ", room).to_string(),
-                telegram_api,
-                started_by_telegram,
-                ctx,
-            );
-
-            let sections: Vec<rooms::Section> = room_store.get(&room).unwrap().to_vec();
-            println!("{:?}", sections);
-            for section in sections {
-                thread::sleep(Duration::from_millis(100));
-
-                println!("{:?}", section);
-                channel.send_message(
-                    format!("{:?}", section).to_string(),
-                    telegram_api,
-                    started_by_telegram,
-                    ctx,
-                );
-            }
-        }
+        channel.send_message(
+            format!("{}", res.text().unwrap()),
+            telegram_api,
+            started_by_telegram,
+            ctx,
+        );
     } else if content == "!run" || content == "/run" {
         channel.send_message(
             "Checking for preregistered foods".to_string(),
@@ -420,7 +413,6 @@ impl EventHandler for Handler {
     // Discord specific
     fn message(&self, ctx: Context, message: serenity::model::channel::Message) {
         let food_store = Arc::clone(&self.food_store);
-        let room_store = Arc::clone(&self.room_store);
         let listeners = Arc::clone(&self.listeners);
         let author = User::from_discord_message(&message);
         let content = message.content.clone();
@@ -443,7 +435,6 @@ impl EventHandler for Handler {
             telegram_token,
             false,
             food_store,
-            room_store,
             Some(&ctx),
         );
     }
@@ -572,7 +563,6 @@ fn run_telegram_client(
     telegram_token: &str,
     listeners: Arc<Mutex<Vec<(Channel, String)>>>,
     food_store: FoodStore,
-    room_store: RoomStore,
 ) {
     let mut core = Core::new().unwrap();
     let handle = core.handle();
@@ -602,7 +592,6 @@ fn run_telegram_client(
                             Some(telegram_token),
                             true,
                             Arc::clone(&food_store),
-                            Arc::clone(&room_store),
                             None,
                         );
                     }
@@ -639,7 +628,6 @@ fn main() {
 
     let food_store: FoodStore =
         Arc::new(Mutex::new((food::get_date(), food::get_menus_no_cache())));
-    let rooms_store: RoomStore = Arc::new(Mutex::new(rooms::load_sections_map()));
 
     let telegram_token = if run_telegram {
         Some(load_telegram_token())
@@ -653,7 +641,6 @@ fn main() {
             Arc::clone(&listeners),
             telegram_token.clone(),
             Arc::clone(&food_store),
-            Arc::clone(&rooms_store),
         );
 
         let owners = match client.cache_and_http.http.get_current_application_info() {
@@ -701,9 +688,9 @@ fn main() {
             run_discord_client(discord_client.unwrap());
         });
 
-        run_telegram_client(&telegram_token.unwrap(), listeners, food_store, rooms_store);
+        run_telegram_client(&telegram_token.unwrap(), listeners, food_store);
     } else if run_telegram {
-        run_telegram_client(&telegram_token.unwrap(), listeners, food_store, rooms_store);
+        run_telegram_client(&telegram_token.unwrap(), listeners, food_store);
     } else if run_discord {
         run_discord_client(discord_client.unwrap());
     }

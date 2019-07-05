@@ -92,10 +92,9 @@ fn load_class_data() -> Vec<Class> {
     serde_json::from_str(spire_json.trim()).unwrap()
 }
 
-type InternalRoomStore = HashMap<String, Vec<Section>>;
-pub type RoomStore = Arc<Mutex<InternalRoomStore>>;
+pub type RoomStore = HashMap<String, Vec<Section>>;
 
-pub fn load_sections_map() -> HashMap<String, Vec<Section>> {
+pub fn load_sections_map() -> RoomStore {
     let classes = load_class_data();
 
     let mut rooms_with_sections: HashMap<String, Vec<Section>> = HashMap::new();

@@ -1,20 +1,11 @@
 [package]
-name = "umass_events_discord"
+name = "umass_client"
 version = "0.1.0"
 edition = "2018"
 authors = ["gbear605 <developer@vivissi.com>"]
 
-[[bin]]
-name = "server"
-path = "src/server/main.rs"
-
-[[bin]]
-name = "client"
-path = "src/client/main.rs"
-
 [dependencies]
-serenity = "0.6"
-telegram-bot = { git = "https://github.com/telegram-rs/telegram-bot"}
+telegram-bot = { git = "https://github.com/telegram-rs/telegram-bot" }
 reqwest = "0.8.8"
 select = "0.4.2"
 chrono = "0.4.6"
@@ -24,3 +15,13 @@ tokio-core = "^0.1"
 futures = "^0.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+rocket = { git = "https://github.com/SergioBenitez/Rocket" }
+serenity = "^0.6"
+
+[[bin]]
+name = "server"
+path = "src/server/main.rs"
+
+[[bin]]
+name = "client"
+path = "src/client/main.rs"
