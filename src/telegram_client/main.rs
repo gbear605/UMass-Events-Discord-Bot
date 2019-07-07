@@ -54,12 +54,16 @@ impl TelegramChannel {
     }
 }
 
-fn send_get(url: String) -> String {
+type ResponseCode = hyper::StatusCode;
+
+fn send_get(url: String) -> (String, ResponseCode) {
     let url = url.replace(" ", "%20");
 
-    let mutex = Arc::new(Mutex::new(None));
+    let body_mutex = Arc::new(Mutex::new(None));
+    let body_mutex_c = body_mutex.clone();
 
-    let mutex_c = mutex.clone();
+    let status_mutex = Arc::new(Mutex::new(None));
+    let status_mutex_c = status_mutex.clone();
 
     let t = thread::spawn(move || {
         tokio::run({
@@ -67,7 +71,8 @@ fn send_get(url: String) -> String {
             dbg!(url.clone());
             client
                 .get(url.parse().unwrap())
-                .and_then(|res| {
+                .and_then(move |res| {
+                    *status_mutex_c.lock().unwrap() = Some(res.status());
                     // asynchronously concatenate chunks of the body
                     res.into_body().concat2()
                 })
@@ -75,7 +80,7 @@ fn send_get(url: String) -> String {
                     println!("Error: {}", err);
                 })
                 .and_then(move |body| {
-                    *mutex_c.lock().unwrap() =
+                    *body_mutex_c.lock().unwrap() =
                         Some(format!("{}", std::str::from_utf8(&body).unwrap()));
                     Ok(())
                 })
@@ -83,12 +88,14 @@ fn send_get(url: String) -> String {
     });
 
     t.join().unwrap();
-    let x = format!("{}", (mutex.lock().unwrap().as_ref().unwrap()));
-    x
+    let body = format!("{}", (body_mutex.lock().unwrap().as_ref().unwrap()));
+    let unwrapped_status_mutex = status_mutex.lock().unwrap();
+    let status = unwrapped_status_mutex.as_ref().unwrap();
+    (body, *status)
 }
 
 fn check_food(food: String) -> String {
-    send_get(format!("http://localhost:8000/food?food={}", food))
+    send_get(format!("http://localhost:8000/food?food={}", food)).0
 }
 
 // Get the telegram token file from memory
@@ -152,7 +159,7 @@ fn handle_message(
     } else if content.starts_with("/echo ") {
         let input: String = content[6..].to_string();
 
-        let res = send_get(format!("http://localhost:8000/echo?input={}", input));
+        let res = send_get(format!("http://localhost:8000/echo?input={}", input)).0;
 
         channel.send_message(format!("{}", res), &telegram_api);
     } else if content.starts_with("/register ") {
@@ -185,9 +192,13 @@ fn handle_message(
     } else if content.starts_with("/room ") {
         let room: String = content[6..].to_string();
 
-        let res = send_get(format!("http://localhost:8000/room/?room={}", room));
+        let (_, status_code) = send_get(format!("http://localhost:8000/room/?room={}", room));
 
-        channel.send_message(format!("{}", res), &telegram_api);
+        if status_code == 200 {
+            channel.send_message(format!("Rooms found"), &telegram_api);
+        } else {
+            channel.send_message(format!("No rooms found"), &telegram_api);
+        }
     } else if content == "/run" {
         channel.send_message(
             "Checking for preregistered foods".to_string(),

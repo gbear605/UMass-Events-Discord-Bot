@@ -183,13 +183,17 @@ impl EventHandler for Handler {
             let room: String = content[6..].to_string();
 
             let client = reqwest::Client::new();
-            let mut res = client
+            let res = client
                 .get("http://localhost:8000/room/")
                 .query(&[("room", room)])
                 .send()
                 .unwrap();
 
-            send_message(channel, format!("{}", res.text().unwrap()), &ctx);
+            if res.status().is_success() {
+                send_message(channel, format!("Some classes meet in that room",), &ctx);
+            } else {
+                send_message(channel, format!("No classes meet in that room",), &ctx);
+            }
         } else if content == "!run" {
             send_message(
                 channel,

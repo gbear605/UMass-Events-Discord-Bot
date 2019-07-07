@@ -20,6 +20,11 @@ rocket = { git = "https://github.com/SergioBenitez/Rocket" }
 serenity = "^0.6"
 hyper = "0.12"
 
+[dependencies.rocket_contrib]
+git = "https://github.com/SergioBenitez/Rocket"
+default-features = false
+features = ["json"]
+
 [[bin]]
 name = "server"
 path = "src/server/main.rs"

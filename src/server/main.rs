@@ -3,15 +3,21 @@
 #[macro_use]
 extern crate rocket;
 
+#[macro_use]
+extern crate rocket_contrib;
+
 mod events;
 mod food;
 mod rooms;
 
+use crate::rooms::Section;
 use food::FoodStore;
 
 use rocket::State;
 use rooms::load_sections_map;
 use rooms::RoomStore;
+
+use rocket_contrib::json::Json;
 
 #[get("/?<input>")]
 fn echo(input: String) -> String {
@@ -19,11 +25,11 @@ fn echo(input: String) -> String {
 }
 
 #[get("/?<room>")]
-fn room(room_store: State<RoomStore>, room: String) -> String {
+fn room(room_store: State<RoomStore>, room: String) -> Option<Json<Vec<Section>>> {
     if !room_store.contains_key(&room) {
-        format!("Room {} not found on SPIRE", room)
+        None
     } else {
-        format!("Room {} found on SPIRE", room)
+        Some(Json(room_store.get(&room).unwrap().to_vec()))
     }
 }
 

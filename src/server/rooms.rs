@@ -1,6 +1,7 @@
 use serde::de::Deserializer;
 use serde::de::{self, Visitor};
 use serde::Deserialize;
+use serde::Serialize;
 
 use std::collections::HashMap;
 
@@ -10,8 +11,9 @@ use std::io::Read;
 use std::fmt;
 
 use chrono::NaiveTime;
+use chrono::Timelike;
 
-#[derive(Debug, Clone, Copy, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq)]
 enum Day {
     Monday,
     Tuesday,
@@ -22,11 +24,13 @@ enum Day {
     Sunday,
 }
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
 pub struct Section {
     #[serde(deserialize_with = "deserialize_naive_time")]
+    #[serde(serialize_with = "serialize_naive_time")]
     start_time: NaiveTime,
     #[serde(deserialize_with = "deserialize_naive_time")]
+    #[serde(serialize_with = "serialize_naive_time")]
     end_time: NaiveTime,
     days: Vec<Day>,
     room: String,
@@ -38,6 +42,13 @@ where
     D: Deserializer<'de>,
 {
     deserializer.deserialize_identifier(NaiveTimeVisitor)
+}
+
+fn serialize_naive_time<S>(time: &NaiveTime, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: serde::Serializer,
+{
+    serializer.collect_str(&format!("{:02}:{:02}", time.hour(), time.minute()))
 }
 
 struct NaiveTimeVisitor;
@@ -74,8 +85,8 @@ impl<'de> Visitor<'de> for NaiveTimeVisitor {
 // Idea for it: make a new struct Time that contains a String for the time
 // and then implement Eq for it.
 
-#[derive(Debug, Deserialize, PartialEq, Clone)]
-struct Class {
+#[derive(Debug, Deserialize, Serialize, PartialEq, Clone)]
+pub struct Class {
     name: String,
     sections: Vec<Section>,
 }
