@@ -13,7 +13,7 @@ use rocket::State;
 use rooms::load_sections_map;
 use rooms::RoomStore;
 
-#[post("/?<input>")]
+#[get("/?<input>")]
 fn echo(input: String) -> String {
     input
 }

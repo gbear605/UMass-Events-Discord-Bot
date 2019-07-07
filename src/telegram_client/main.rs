@@ -1,7 +1,7 @@
 extern crate chrono;
 extern crate futures;
+extern crate hyper;
 extern crate openssl_probe;
-extern crate reqwest;
 extern crate select;
 extern crate telegram_bot;
 extern crate tokio;
@@ -19,12 +19,16 @@ use std::io::Write;
 
 // For multithreading
 use std::ops::DerefMut;
+
 use std::sync::{Arc, Mutex};
 use std::thread;
 
 // For telegram
 use futures::Stream;
 use telegram_bot::*;
+
+use hyper::rt::{Future, Stream as HyperStream};
+use hyper::Client;
 
 use tokio_core::reactor::Core;
 
@@ -50,15 +54,41 @@ impl TelegramChannel {
     }
 }
 
+fn send_get(url: String) -> String {
+    let url = url.replace(" ", "%20");
+
+    let mutex = Arc::new(Mutex::new(None));
+
+    let mutex_c = mutex.clone();
+
+    let t = thread::spawn(move || {
+        tokio::run({
+            let client = Client::new();
+            dbg!(url.clone());
+            client
+                .get(url.parse().unwrap())
+                .and_then(|res| {
+                    // asynchronously concatenate chunks of the body
+                    res.into_body().concat2()
+                })
+                .map_err(|err| {
+                    println!("Error: {}", err);
+                })
+                .and_then(move |body| {
+                    *mutex_c.lock().unwrap() =
+                        Some(format!("{}", std::str::from_utf8(&body).unwrap()));
+                    Ok(())
+                })
+        });
+    });
+
+    t.join().unwrap();
+    let x = format!("{}", (mutex.lock().unwrap().as_ref().unwrap()));
+    x
+}
+
 fn check_food(food: String) -> String {
-    let client = reqwest::Client::new();
-    client
-        .get("http://localhost:8000/food/")
-        .query(&[("food", food)])
-        .send()
-        .unwrap()
-        .text()
-        .unwrap()
+    send_get(format!("http://localhost:8000/food?food={}", food))
 }
 
 // Get the telegram token file from memory
@@ -120,16 +150,11 @@ fn handle_message(
 
         channel.send_message(format!("{}", response), &telegram_api);
     } else if content.starts_with("/echo ") {
-        let input: String = content[5..].to_string();
+        let input: String = content[6..].to_string();
 
-        let client = reqwest::Client::new();
-        let mut res = client
-            .get("http://localhost:8000/echo/")
-            .query(&[("input", input)])
-            .send()
-            .unwrap();
+        let res = send_get(format!("http://localhost:8000/echo?input={}", input));
 
-        channel.send_message(format!("{}", res.text().unwrap()), &telegram_api);
+        channel.send_message(format!("{}", res), &telegram_api);
     } else if content.starts_with("/register ") {
         let item: String = content[10..].to_string();
         listeners
@@ -160,14 +185,9 @@ fn handle_message(
     } else if content.starts_with("/room ") {
         let room: String = content[6..].to_string();
 
-        let client = reqwest::Client::new();
-        let mut res = client
-            .get("http://localhost:8000/room/")
-            .query(&[("room", room)])
-            .send()
-            .unwrap();
+        let res = send_get(format!("http://localhost:8000/room/?room={}", room));
 
-        channel.send_message(format!("{}", res.text().unwrap()), &telegram_api);
+        channel.send_message(format!("{}", res), &telegram_api);
     } else if content == "/run" {
         channel.send_message(
             "Checking for preregistered foods".to_string(),
