@@ -24,10 +24,10 @@ tasks:
       cargo build --bin server --release
   - deploy: |
       cd umass_discord_bot/target/release
-      ssh root@greenwichmeanti.me "pkill -f '/root/umass_bot'"
+      ssh -o StrictHostKeyChecking=no root@greenwichmeanti.me "pkill -f '/root/umass_bot'"
       scp -o StrictHostKeyChecking=no server root@greenwichmeanti.me:~/umass_bot/server
       scp -o StrictHostKeyChecking=no discord_client root@greenwichmeanti.me:~/umass_bot/discord_client
       scp -o StrictHostKeyChecking=no telegram_client root@greenwichmeanti.me:~/umass_bot/telegram_client
-      ssh root@greenwichmeanti.me "/root/umass_bot/server | ts > /root/logs/umass_bot_server.log 2>&1"
-      ssh root@greenwichmeanti.me "/root/umass_bot/discord_client | ts > /root/logs/umass_bot_discord_client.log 2>&1"
-      ssh root@greenwichmeanti.me "/root/umass_bot/telegram_client | ts > /root/logs/umass_bot_telegram_client.log 2>&1"
+      ssh -o StrictHostKeyChecking=no root@greenwichmeanti.me "/root/umass_bot/server | ts > /root/logs/umass_bot_server.log 2>&1"
+      ssh -o StrictHostKeyChecking=no root@greenwichmeanti.me "/root/umass_bot/discord_client | ts > /root/logs/umass_bot_discord_client.log 2>&1"
+      ssh -o StrictHostKeyChecking=no root@greenwichmeanti.me "/root/umass_bot/telegram_client | ts > /root/logs/umass_bot_telegram_client.log 2>&1"
