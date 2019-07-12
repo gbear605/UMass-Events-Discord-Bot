@@ -2,11 +2,15 @@
 
 [![builds.sr.ht status](https://builds.sr.ht/~gbear605/umass_discord_bot.svg)](https://builds.sr.ht/~gbear605/umass_discord_bot?)
 
+A Discord and Telegram bot written in Rust to enable easy access to a variety of University of Massachusetts, Amherst services. Currently, it provides the ability to search across the dining halls to check which foods are present on a given day, as well as information on room availability to ease studying.
+
 ## Usage
 
-The program requires a bot token to connect to Discord. It does this using a "token" file that is not checked in to git, so that the bot cannot be messed with.
-
 To add it to your server, go to [this link](https://discordapp.com/api/oauth2/authorize?client_id=355392985912836097&scope=bot&permissions=1) and authorize the bot.
+
+## Development
+
+The program requires a bot token to connect to Discord or Telegram. It does this using private token files (`discord_token` and `telegram_token` respectively) which can be acquired from Discord and Telegram.
 
 ## Crosscompiling for Linux
 
@@ -42,13 +46,14 @@ The built files will be in ``target/x86_64-unknown-linux-musl/release``
 | --------------------- | --------------------------------------------------------------------------- |
 | !menu [food name]     | tells you where that food is being served today                             |
 | !register [food name] | schedules it to tell you each day where that food is being served that day  |
-| !events               | tells you the events for that day [[Currently broken!]]                     |
+| !room [room name]     | checks whether the given room is currently in use by a class or free        |
 | !help                 | tells you this list of commands                                             |
 
 ## TODO
 
 * Add !deregister
-* Fix !events
+* Add !events
 * Add !time that says how long until the next scheduled food announcement
-* Allow authorized users (ie. gbear605) to make announcements to all servers the bot is on
+* Allow authorized users to make announcements to all servers the bot is on
 * Allow manual input of food for future days, for late night menus.
+* Add more usage of classroom data

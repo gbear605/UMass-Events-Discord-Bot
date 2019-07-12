@@ -11,23 +11,19 @@ sources:
 secrets:
   - 0755116a-2598-41d7-b910-e8d6d97410b3
 tasks:
-  # Based on rust-musl-builder
-  # needed because debain ships old rust versions
   - install-rust: |
       curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain nightly
       source $HOME/.cargo/env
   - build: |
       source $HOME/.cargo/env
       cd umass_discord_bot
-      cargo build --bin telegram_client --release
-      cargo build --bin discord_client --release
-      cargo build --bin server --release
+      cargo build --release
   - deploy: |
       cd umass_discord_bot/target/release
       ssh -o StrictHostKeyChecking=no root@greenwichmeanti.me "pkill -f '/root/umass_bot'"
       scp -o StrictHostKeyChecking=no server root@greenwichmeanti.me:~/umass_bot/server
       scp -o StrictHostKeyChecking=no discord_client root@greenwichmeanti.me:~/umass_bot/discord_client
       scp -o StrictHostKeyChecking=no telegram_client root@greenwichmeanti.me:~/umass_bot/telegram_client
-      ssh -o StrictHostKeyChecking=no root@greenwichmeanti.me "/root/umass_bot/server | ts > /root/logs/umass_bot_server.log 2>&1"
-      ssh -o StrictHostKeyChecking=no root@greenwichmeanti.me "/root/umass_bot/discord_client | ts > /root/logs/umass_bot_discord_client.log 2>&1"
-      ssh -o StrictHostKeyChecking=no root@greenwichmeanti.me "/root/umass_bot/telegram_client | ts > /root/logs/umass_bot_telegram_client.log 2>&1"
+      # ssh -f -o StrictHostKeyChecking=no root@greenwichmeanti.me "nohup ./start_scripts/run_umass_bot_server.sh &"
+      # ssh -f -o StrictHostKeyChecking=no root@greenwichmeanti.me "nohup ./start_scripts/run_umass_bot_discord_client.sh &"
+      # ssh -f -o StrictHostKeyChecking=no root@greenwichmeanti.me "nohup ./start_scripts/run_umass_bot_telegram_client.sh &"
