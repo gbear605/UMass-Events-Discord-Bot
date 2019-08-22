@@ -1764,22 +1764,22 @@ dependencies = [
 
 [[package]]
 name = "telegram-bot"
-version = "0.6.2"
-source = "git+https://github.com/telegram-rs/telegram-bot#888170794d6851e7dc0a5e06d955e398511f90ca"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "antidote 1.0.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "error-chain 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures 0.1.27 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.12.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper-tls 0.3.2 (registry+https://github.com/rust-lang/crates.io-index)",
- "telegram-bot-raw 0.6.2 (git+https://github.com/telegram-rs/telegram-bot)",
+ "telegram-bot-raw 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-core 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "telegram-bot-raw"
-version = "0.6.2"
-source = "git+https://github.com/telegram-rs/telegram-bot#888170794d6851e7dc0a5e06d955e398511f90ca"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "error-chain 0.11.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 1.0.93 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2147,7 +2147,7 @@ dependencies = [
  "serde 1.0.93 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_json 1.0.39 (registry+https://github.com/rust-lang/crates.io-index)",
  "serenity 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "telegram-bot 0.6.2 (git+https://github.com/telegram-rs/telegram-bot)",
+ "telegram-bot 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio 0.1.21 (registry+https://github.com/rust-lang/crates.io-index)",
  "tokio-core 0.1.17 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -2560,8 +2560,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 "checksum syn 0.15.38 (registry+https://github.com/rust-lang/crates.io-index)" = "37ea458a750f59ab679b47fef9b6722c586c5742f4cfe18a120bbc807e5e01fd"
 "checksum synom 0.11.3 (registry+https://github.com/rust-lang/crates.io-index)" = "a393066ed9010ebaed60b9eafa373d4b1baac186dd7e008555b0f702b51945b6"
 "checksum synstructure 0.10.2 (registry+https://github.com/rust-lang/crates.io-index)" = "02353edf96d6e4dc81aea2d8490a7e9db177bf8acb0e951c24940bf866cb313f"
-"checksum telegram-bot 0.6.2 (git+https://github.com/telegram-rs/telegram-bot)" = "<none>"
-"checksum telegram-bot-raw 0.6.2 (git+https://github.com/telegram-rs/telegram-bot)" = "<none>"
+"checksum telegram-bot 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)" = "225d5eca220fcf23ad25b269991cdc8f8d421d97634c7f9e10b4c5dcdaa913b6"
+"checksum telegram-bot-raw 0.6.3 (registry+https://github.com/rust-lang/crates.io-index)" = "65578f718dadd17347cd60d45609a7e1d57a52b459797957002b922349ee9744"
 "checksum tempfile 3.0.8 (registry+https://github.com/rust-lang/crates.io-index)" = "7dc4738f2e68ed2855de5ac9cdbe05c9216773ecde4739b2f095002ab03a13ef"
 "checksum tendril 0.3.1 (registry+https://github.com/rust-lang/crates.io-index)" = "8c1b72f8e2f5b73b65c315b1a70c730f24b9d7a25f39e98de8acbe2bb795caea"
 "checksum termion 1.5.3 (registry+https://github.com/rust-lang/crates.io-index)" = "6a8fb22f7cde82c8220e5aeacb3258ed7ce996142c77cba193f203515e26c330"

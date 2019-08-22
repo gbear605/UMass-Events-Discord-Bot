@@ -5,7 +5,7 @@ edition = "2018"
 authors = ["gbear605 <developer@vivissi.com>"]
 
 [dependencies]
-telegram-bot = { git = "https://github.com/telegram-rs/telegram-bot" }
+telegram-bot = "0.6.3"
 reqwest = "^0.9"
 select = "0.4.2"
 chrono = "0.4.6"
@@ -17,13 +17,9 @@ futures = "^0.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 rocket = { git = "https://github.com/SergioBenitez/Rocket" }
+rocket_contrib = { git = "https://github.com/SergioBenitez/Rocket", default-features = false, features = ["json"]}
 serenity = "^0.6"
 hyper = "0.12"
-
-[dependencies.rocket_contrib]
-git = "https://github.com/SergioBenitez/Rocket"
-default-features = false
-features = ["json"]
 
 [[bin]]
 name = "server"
