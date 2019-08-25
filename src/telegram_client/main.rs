@@ -321,7 +321,7 @@ fn main() {
             println!("Seconds till scheduled: {:?}", get_time_till_scheduled());
             thread::sleep(get_time_till_scheduled());
             println!("Checking for foods now!");
-            check_for_foods(&listeners, &telegram_token);
+            check_for_foods(&listeners, &api);
         }
     });*/
 
