@@ -8,6 +8,7 @@ extern crate tokio;
 extern crate tokio_core;
 
 // For discord
+use serenity::http::raw::Http;
 use chrono::Timelike;
 use serenity::client::Client;
 use serenity::http::GuildPagination;
@@ -39,8 +40,8 @@ fn check_msg<T>(result: serenity::Result<T>) {
     }
 }
 
-fn send_message(channel_id: ChannelId, message: String, ctx: &Context) {
-    check_msg(channel_id.say(&ctx.http, message));
+fn send_message(channel_id: ChannelId, message: String, http: &Arc<Http>) {
+    check_msg(channel_id.say(http, message));
 }
 
 fn check_food(food: String) -> String {
@@ -63,9 +64,8 @@ fn load_discord_token() -> String {
     token
 }
 
-fn get_guilds(ctx: Context) -> Vec<String> {
-    let guilds = ctx
-        .http
+fn get_guilds(http: &Arc<Http>) -> Vec<String> {
+    let guilds = http
         .get_guilds(&GuildPagination::After(GuildId(0)), 100)
         .unwrap();
     guilds.into_iter().map(|guild| guild.name).collect()
@@ -93,15 +93,15 @@ impl User {
         }
     }
 
-    fn is_self(&self, ctx: &Context) -> serenity::Result<bool> {
-        Ok(ctx.http.get_current_application_info()?.id == self.id)
+    fn is_self(&self, http: &Arc<Http>) -> serenity::Result<bool> {
+        Ok(http.get_current_application_info()?.id == self.id)
     }
 }
 
 impl EventHandler for Handler {
     fn ready(&self, ctx: Context, ready: Ready) {
         println!("Connected to Discord as {}", ready.user.name);
-        println!("Connected to servers: {}", get_guilds(ctx).join(", "));
+        println!("Connected to servers: {}", get_guilds(&ctx.http).join(", "));
     }
 
     fn resume(&self, _: Context, _: ResumedEvent) {
@@ -123,7 +123,7 @@ impl EventHandler for Handler {
 
         // We don't want to respond to ourselves
         // For instance, this would cause issues with !help
-        if let Ok(val) = author.is_self(&ctx) {
+        if let Ok(val) = author.is_self(&ctx.http) {
             if val {
                 return;
             }
@@ -134,7 +134,7 @@ impl EventHandler for Handler {
 
             let response = check_food(item.to_string());
 
-            send_message(channel, format!("{}", response), &ctx);
+            send_message(channel, format!("{}", response), &ctx.http);
         } else if content.starts_with("!echo ") {
             let input: String = content[5..].to_string();
 
@@ -145,7 +145,7 @@ impl EventHandler for Handler {
                 .send()
                 .unwrap();
 
-            send_message(channel, format!("{}", res.text().unwrap()), &ctx);
+            send_message(channel, format!("{}", res.text().unwrap()), &ctx.http);
         } else if content.starts_with("!register ") {
             let item: String = content[10..].to_string();
             listeners
@@ -157,19 +157,19 @@ impl EventHandler for Handler {
             send_message(
                 channel,
                 format!("Will check for {}", item).to_string(),
-                &ctx,
+                &ctx.http,
             );
 
             let response = check_food(item.to_string());
 
-            send_message(channel, format!("{}", response), &ctx);
+            send_message(channel, format!("{}", response), &ctx.http);
         } else if content == "!help" {
             send_message(
                 channel,
                 "```!menu [food name]     | tells you where that food is being served \
                  today```"
                     .to_string(),
-                &ctx,
+                &ctx.http,
             );
 
             send_message(
@@ -177,7 +177,7 @@ impl EventHandler for Handler {
                 "```!register [food name] | schedules it to tell you each day where that \
                  food is being served that day```"
                     .to_string(),
-                &ctx,
+                &ctx.http,
             );
         } else if content.starts_with("!room ") {
             let room: String = content[6..].to_string();
@@ -190,19 +190,19 @@ impl EventHandler for Handler {
                 .unwrap();
 
             if res.status().is_success() {
-                send_message(channel, format!("Some classes meet in that room",), &ctx);
+                send_message(channel, format!("Some classes meet in that room",), &ctx.http);
             } else {
-                send_message(channel, format!("No classes meet in that room",), &ctx);
+                send_message(channel, format!("No classes meet in that room",), &ctx.http);
             }
         } else if content == "!run" {
             send_message(
                 channel,
                 "Checking for preregistered foods".to_string(),
-                &ctx,
+                &ctx.http,
             );
-            check_for_foods(&listeners, &ctx);
+            check_for_foods(&listeners, &ctx.http);
         } else if (content.starts_with("!quit")) && author.is_owner {
-            send_message(channel, "UMass Bot Quitting".to_string(), &ctx);
+            send_message(channel, "UMass Bot Quitting".to_string(), &ctx.http);
             std::process::exit(0);
         }
     }
@@ -285,7 +285,7 @@ fn get_time_till_scheduled() -> std::time::Duration {
     (next_run - current_time).to_std().unwrap()
 }
 
-fn check_for_foods(listeners: &Arc<Mutex<Vec<(ChannelId, String)>>>, ctx: &Context) {
+fn check_for_foods(listeners: &Arc<Mutex<Vec<(ChannelId, String)>>>, http: &Arc<Http>) {
     listeners
         .lock()
         .unwrap()
@@ -295,7 +295,7 @@ fn check_for_foods(listeners: &Arc<Mutex<Vec<(ChannelId, String)>>>, ctx: &Conte
             println!("Checking on {:?} for {}", channel, food);
             let response = check_food(food);
 
-            send_message(channel, format!("{}", response), ctx);
+            send_message(channel, format!("{}", response), http);
         });
 }
 
@@ -306,7 +306,7 @@ fn main() {
     let listeners: Arc<Mutex<Vec<(ChannelId, String)>>> = Arc::new(Mutex::new(read_listeners()));
 
     // Setup discord
-    let mut client = Client::new(load_discord_token().trim(), Handler { listeners })
+    let mut client = Client::new(load_discord_token().trim(), Handler { listeners: Arc::clone(&listeners) })
         .expect("Error creating client");
 
     let owners = match client.cache_and_http.http.get_current_application_info() {
@@ -322,7 +322,8 @@ fn main() {
     println!("Owners: {:?}", owners);
 
     // Listeners loop
-    /*let listeners_clone = Arc::clone(&listeners);
+    let listeners_clone = Arc::clone(&listeners);
+    let http = Arc::clone(&client.cache_and_http.http);
     thread::spawn(move || {
         let listeners = listeners_clone;
         loop {
@@ -330,10 +331,10 @@ fn main() {
             thread::sleep(get_time_till_scheduled());
             println!("Checking for foods now!");
             check_for_foods(
-                &listeners, None, //TODO: this needs to be Some for Discord
+                &listeners, &http,
             );
         }
-    });*/
+    });
 
     if let Err(why) = client.start() {
         println!("Discord client error: {:?}", why);
