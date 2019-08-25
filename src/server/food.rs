@@ -180,7 +180,7 @@ fn which_meals(dc: DiningCommon) -> Vec<Meal> {
     match get_day_of_week() {
         Mon | Tue | Wed | Thu => match dc {
             Berk => vec![Lunch, Dinner, LateNight, GrabAndGo],
-            Hamp | Frank => vec![Breakfast, Lunch, Dinner GrabAndGo],
+            Hamp | Frank => vec![Breakfast, Lunch, Dinner, GrabAndGo],
             Worcester => vec![Breakfast, Lunch, Dinner, LateNight, GrabAndGo],
         },
         Fri => match dc {
