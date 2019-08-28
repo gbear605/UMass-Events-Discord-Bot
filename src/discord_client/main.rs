@@ -7,10 +7,14 @@ extern crate serenity;
 extern crate tokio;
 extern crate tokio_core;
 
+mod error;
+
+use crate::error::*;
+
 // For discord
-use serenity::http::raw::Http;
 use chrono::Timelike;
 use serenity::client::Client;
+use serenity::http::raw::Http;
 use serenity::http::GuildPagination;
 use serenity::model::event::ResumedEvent;
 use serenity::model::id::ChannelId;
@@ -40,19 +44,17 @@ fn check_msg<T>(result: serenity::Result<T>) {
     }
 }
 
-fn send_message(channel_id: ChannelId, message: String, http: &Arc<Http>) {
+fn send_message(channel_id: ChannelId, message: &str, http: &Arc<Http>) {
     check_msg(channel_id.say(http, message));
 }
 
-fn check_food(food: String) -> String {
+fn check_food(food: &str) -> Result<String> {
     let client = reqwest::Client::new();
-    client
+    Ok(client
         .get("http://localhost:8000/food/")
         .query(&[("food", food)])
-        .send()
-        .unwrap()
-        .text()
-        .unwrap()
+        .send()?
+        .text()?)
 }
 
 // Get the discord token file from memory
@@ -64,11 +66,9 @@ fn load_discord_token() -> String {
     token
 }
 
-fn get_guilds(http: &Arc<Http>) -> Vec<String> {
-    let guilds = http
-        .get_guilds(&GuildPagination::After(GuildId(0)), 100)
-        .unwrap();
-    guilds.into_iter().map(|guild| guild.name).collect()
+fn get_guilds(http: &Arc<Http>) -> Result<Vec<String>> {
+    let guilds = http.get_guilds(&GuildPagination::After(GuildId(0)), 100)?;
+    Ok(guilds.into_iter().map(|guild| guild.name).collect())
 }
 
 struct Handler {
@@ -101,7 +101,10 @@ impl User {
 impl EventHandler for Handler {
     fn ready(&self, ctx: Context, ready: Ready) {
         println!("Connected to Discord as {}", ready.user.name);
-        println!("Connected to servers: {}", get_guilds(&ctx.http).join(", "));
+        match get_guilds(&ctx.http).map(|guilds| guilds.join(", ")) {
+            Ok(guilds) => println!("Connected to servers: {}", guilds),
+            Err(err) => println!("Couldn't get guilds: {}", err),
+        }
     }
 
     fn resume(&self, _: Context, _: ResumedEvent) {
@@ -110,101 +113,120 @@ impl EventHandler for Handler {
 
     // Discord specific
     fn message(&self, ctx: Context, message: serenity::model::channel::Message) {
-        let listeners = Arc::clone(&self.listeners);
-        let author = User::from_discord_message(&message);
-        let content = message.content.clone();
         let channel = message.channel_id;
-
-        println!("{}: {} says: {}", author.unique_name, author.id, content);
-        if !content.starts_with('!') {
-            // It's not a command, so we don't care about it
-            return;
+        match handle_message(self, ctx.clone(), message) {
+            Ok(returned) => match returned {
+                None => (),
+                Some(response) => send_message(channel, &response, &ctx.http),
+            },
+            Err(err) => match err {
+                UMassBotError::IoError(_) => {
+                    send_message(channel, "Couldn't handle message - IO error", &ctx.http)
+                }
+                UMassBotError::RequestError(_) => send_message(
+                    channel,
+                    "Couldn't handle message - couldn't reach server",
+                    &ctx.http,
+                ),
+                UMassBotError::SerenityError(_) => send_message(
+                    channel,
+                    "Couldn't handle message - issue with Discord",
+                    &ctx.http,
+                ),
+            },
         }
+    }
+}
 
-        // We don't want to respond to ourselves
-        // For instance, this would cause issues with !help
-        if let Ok(val) = author.is_self(&ctx.http) {
-            if val {
-                return;
-            }
+fn handle_message(
+    handler: &Handler,
+    ctx: Context,
+    message: serenity::model::channel::Message,
+) -> Result<Option<String>> {
+    let listeners = Arc::clone(&handler.listeners);
+    let author = User::from_discord_message(&message);
+    let content = message.content.clone();
+    let channel = message.channel_id;
+
+    println!("{}: {} says: {}", author.unique_name, author.id, content);
+    if !content.starts_with('!') {
+        // It's not a command, so we don't care about it
+        return Ok(None);
+    }
+
+    // We don't want to respond to ourselves
+    // For instance, this would cause issues with !help
+    if let Ok(val) = author.is_self(&ctx.http) {
+        if val {
+            return Ok(None);
         }
+    }
 
-        if content.starts_with("!menu ") {
-            let item: &str = &content[6..];
+    if content.starts_with("!menu ") {
+        let food: &str = &content[6..];
 
-            let response = check_food(item.to_string());
+        Ok(Some(check_food(food)?))
+    } else if content.starts_with("!echo ") {
+        let input: String = content[5..].to_string();
 
-            send_message(channel, format!("{}", response), &ctx.http);
-        } else if content.starts_with("!echo ") {
-            let input: String = content[5..].to_string();
+        let client = reqwest::Client::new();
+        let response = client
+            .get("http://localhost:8000/echo/")
+            .query(&[("input", input)])
+            .send()?
+            .text()?;
 
-            let client = reqwest::Client::new();
-            let mut res = client
-                .get("http://localhost:8000/echo/")
-                .query(&[("input", input)])
-                .send()
-                .unwrap();
+        Ok(Some(response))
+    } else if content.starts_with("!register ") {
+        let food: &str = &content[10..];
+        listeners
+            .lock()
+            .unwrap()
+            .deref_mut()
+            .push((channel.clone(), food.to_string()));
+        save_listeners(listeners.lock().unwrap().deref_mut())?;
+        send_message(
+            channel,
+            &format!("Will check for {}", food).to_string(),
+            &ctx.http,
+        );
 
-            send_message(channel, format!("{}", res.text().unwrap()), &ctx.http);
-        } else if content.starts_with("!register ") {
-            let item: String = content[10..].to_string();
-            listeners
-                .lock()
-                .unwrap()
-                .deref_mut()
-                .push((channel.clone(), item.clone()));
-            save_listeners(listeners.lock().unwrap().deref_mut());
-            send_message(
-                channel,
-                format!("Will check for {}", item).to_string(),
-                &ctx.http,
-            );
+        Ok(Some(check_food(food)?))
+    } else if content == "!help" {
+        Ok(Some(
+            "```!menu [food name]     | tells you where that food is being served \
+             today```\n```!register [food name] | schedules it to tell you each day where that \
+             food is being served that day```"
+                .to_string(),
+        ))
+    } else if content.starts_with("!room ") {
+        let room: String = content[6..].to_string();
 
-            let response = check_food(item.to_string());
+        let client = reqwest::Client::new();
+        let res = client
+            .get("http://localhost:8000/room/")
+            .query(&[("room", room)])
+            .send()?;
 
-            send_message(channel, format!("{}", response), &ctx.http);
-        } else if content == "!help" {
-            send_message(
-                channel,
-                "```!menu [food name]     | tells you where that food is being served \
-                 today```"
-                    .to_string(),
-                &ctx.http,
-            );
-
-            send_message(
-                channel,
-                "```!register [food name] | schedules it to tell you each day where that \
-                 food is being served that day```"
-                    .to_string(),
-                &ctx.http,
-            );
-        } else if content.starts_with("!room ") {
-            let room: String = content[6..].to_string();
-
-            let client = reqwest::Client::new();
-            let res = client
-                .get("http://localhost:8000/room/")
-                .query(&[("room", room)])
-                .send()
-                .unwrap();
-
-            if res.status().is_success() {
-                send_message(channel, format!("Some classes meet in that room",), &ctx.http);
-            } else {
-                send_message(channel, format!("No classes meet in that room",), &ctx.http);
-            }
-        } else if content == "!run" {
-            send_message(
-                channel,
-                "Checking for preregistered foods".to_string(),
-                &ctx.http,
-            );
-            check_for_foods(&listeners, &ctx.http);
-        } else if (content.starts_with("!quit")) && author.is_owner {
-            send_message(channel, "UMass Bot Quitting".to_string(), &ctx.http);
-            std::process::exit(0);
+        if res.status().is_success() {
+            Ok(Some("Some classes meet in that room".to_string()))
+        } else {
+            Ok(Some("No classes meet in that room".to_string()))
         }
+    } else if content == "!run" {
+        let listeners = Arc::clone(&listeners);
+        let http = Arc::clone(&ctx.http);
+        thread::spawn(move || {
+            println!("Checking for foods now!");
+            check_for_foods(&listeners, &http);
+        });
+
+        Ok(Some("Checking for preregistered foods".to_string()))
+    } else if (content.starts_with("!quit")) && author.is_owner {
+        send_message(channel, "UMass Bot Quitting", &ctx.http);
+        std::process::exit(0);
+    } else {
+        Ok(None)
     }
 }
 
@@ -241,7 +263,7 @@ fn read_listeners() -> Vec<(ChannelId, String)> {
     listeners
 }
 
-fn save_listeners(pairs: &[(ChannelId, String)]) {
+fn save_listeners(pairs: &[(ChannelId, String)]) -> Result<()> {
     let mut listeners_string: String = String::new();
     pairs.iter().for_each(|x| {
         listeners_string = match *x {
@@ -251,14 +273,15 @@ fn save_listeners(pairs: &[(ChannelId, String)]) {
 
     let listeners_string = listeners_string.trim();
 
-    let _ = OpenOptions::new()
+    OpenOptions::new()
         .read(true)
         .write(true)
         .create(true)
         .truncate(true)
-        .open("discord_listeners.txt")
-        .unwrap()
-        .write_all(listeners_string.as_bytes());
+        .open("discord_listeners.txt")?
+        .write_all(listeners_string.as_bytes())?;
+
+    Ok(())
 }
 
 // Runs at 6 AM in summer or 5 AM in winter
@@ -293,9 +316,10 @@ fn check_for_foods(listeners: &Arc<Mutex<Vec<(ChannelId, String)>>>, http: &Arc<
         .into_iter()
         .for_each(|(channel, food)| {
             println!("Checking on {:?} for {}", channel, food);
-            let response = check_food(food);
-
-            send_message(channel, format!("{}", response), http);
+            match check_food(&food) {
+                Ok(response) => send_message(channel, &format!("{}", response), http),
+                Err(_) => send_message(channel, &format!("Couldn't check for {}", food), http),
+            }
         });
 }
 
@@ -306,8 +330,13 @@ fn main() {
     let listeners: Arc<Mutex<Vec<(ChannelId, String)>>> = Arc::new(Mutex::new(read_listeners()));
 
     // Setup discord
-    let mut client = Client::new(load_discord_token().trim(), Handler { listeners: Arc::clone(&listeners) })
-        .expect("Error creating client");
+    let mut client = Client::new(
+        load_discord_token().trim(),
+        Handler {
+            listeners: Arc::clone(&listeners),
+        },
+    )
+    .expect("Error creating client");
 
     let owners = match client.cache_and_http.http.get_current_application_info() {
         Ok(info) => {
@@ -330,9 +359,7 @@ fn main() {
             println!("Seconds till scheduled: {:?}", get_time_till_scheduled());
             thread::sleep(get_time_till_scheduled());
             println!("Checking for foods now!");
-            check_for_foods(
-                &listeners, &http,
-            );
+            check_for_foods(&listeners, &http);
         }
     });
 
