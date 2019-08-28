@@ -15,7 +15,6 @@ use umass_bot_common::datetime::get_time_till_scheduled;
 use umass_bot_common::error::*;
 
 // For discord
-use chrono::Timelike;
 use serenity::client::Client;
 use serenity::http::raw::Http;
 use serenity::http::GuildPagination;
@@ -219,36 +218,9 @@ fn quit(ctx: &mut Context, msg: &Message) -> CommandResult {
 }
 
 fn read_listeners() -> Vec<(ChannelId, String)> {
-    let mut listeners_string: String = String::new();
-    let _ = OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .open("discord_listeners.txt")
-        .expect("No discord listeners file")
-        .read_to_string(&mut listeners_string);
-
-    let mut listeners: Vec<(ChannelId, String)> = vec![];
-
-    for line in listeners_string.split('\n') {
-        if line == "" {
-            continue;
-        }
-        let sections: Vec<&str> = line.split(' ').collect();
-        let app = sections[0];
-        if app == "discord" {
-            let id = ChannelId(
-                sections[1]
-                    .parse::<u64>()
-                    .expect("Couldn't parse channel id"),
-            );
-
-            let food: String = sections[2..].join(" ").to_string();
-            listeners.push((id, food));
-        }
-    }
-
-    listeners
+    umass_bot_common::listeners::read_listeners_generic("discord_listeners.txt", &|s: String| {
+        ChannelId(s.parse::<u64>().expect("Couldn't parse channel id"))
+    })
 }
 
 fn save_listeners(pairs: &[(ChannelId, String)]) -> Result<()> {
