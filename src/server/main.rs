@@ -4,6 +4,9 @@
 extern crate rocket;
 
 extern crate rocket_contrib;
+extern crate umass_bot_common;
+
+use umass_bot_common::error::*;
 
 mod events;
 mod food;
@@ -33,8 +36,13 @@ fn room(room_store: State<RoomStore>, room: String) -> Option<Json<Vec<Section>>
 }
 
 #[get("/?<food>")]
-fn food(food_store: State<FoodStore>, food: String) -> String {
-    food::check_for(&food, &food_store)
+fn food(food_store: State<FoodStore>, food: String) -> Result<String> {
+    let places_found = food::get_food_on_menus(&food, &food_store)?;
+
+    Ok(match places_found.len() {
+        0 => format!("{} not found", food).to_string(),
+        _ => format!("{}: \n{}", food, places_found.join("\n")).to_string(),
+    })
 }
 
 fn main() {

@@ -7,8 +7,8 @@ extern crate telegram_bot;
 extern crate tokio;
 extern crate tokio_core;
 
-// For discord
 use chrono::Timelike;
+use umass_bot_common::datetime::get_time_till_scheduled;
 
 // For file reading
 use std::fs::File;
@@ -262,30 +262,6 @@ fn save_listeners(pairs: &[(TelegramChannel, String)]) {
         .open("telegram_listeners.txt")
         .unwrap()
         .write_all(listeners_string.as_bytes());
-}
-
-// Runs at 6 AM in summer or 5 AM in winter
-fn get_time_till_scheduled() -> std::time::Duration {
-    let current_time_utc = chrono::prelude::Utc::now();
-    let current_time: chrono::DateTime<chrono::offset::FixedOffset> = chrono::DateTime::from_utc(
-        current_time_utc.naive_utc(),
-        chrono::offset::FixedOffset::west(4 * 60 * 60),
-        // Four hours west of the date line
-        // Four instead of five because 5am/6am is a better default than 6am/7am
-    );
-    let next_run_date = if current_time.time().hour() < 6
-        || (current_time.hour() == 6 && current_time.minute() < 5)
-    {
-        // We want to do it today (in UTC) if it is still yesterday in Eastern Time
-        current_time
-    } else {
-        current_time + chrono::Duration::days(1)
-    }
-    .date();
-
-    let next_run = next_run_date.and_hms(6, 5, 0);
-
-    (next_run - current_time).to_std().unwrap()
 }
 
 fn check_for_foods(listeners: &Arc<Mutex<Vec<(TelegramChannel, String)>>>, telegram_api: &Api) {
