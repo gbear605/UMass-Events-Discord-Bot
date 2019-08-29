@@ -47,7 +47,7 @@ impl TelegramChannel {
 }
 
 impl TelegramChannel {
-    fn send_message(&self, message: String, api: &Api) {
+    fn send_message(&self, message: &str, api: &Api) {
         let send_message = self.to_chat_ref().text(message);
         api.spawn(send_message);
     }
@@ -152,15 +152,15 @@ fn handle_message(
     if content.starts_with("/menu ") {
         let item: &str = &content[6..];
 
-        let response = dbg!(check_food(item.to_string()));
+        let response = check_food(item.to_string());
 
-        channel.send_message(format!("{}", response), &telegram_api);
+        channel.send_message(&response, &telegram_api);
     } else if content.starts_with("/echo ") {
         let input: String = content[6..].to_string();
 
         let res = send_get(format!("http://localhost:8000/echo?input={}", input)).0;
 
-        channel.send_message(format!("{}", res), &telegram_api);
+        channel.send_message(&res, &telegram_api);
     } else if content.starts_with("/register ") {
         let item: String = content[10..].to_string();
         listeners
@@ -169,14 +169,11 @@ fn handle_message(
             .deref_mut()
             .push((channel.clone(), item.clone()));
         save_listeners(listeners.lock().unwrap().deref_mut());
-        channel.send_message(
-            format!("Will check for {}", item).to_string(),
-            &telegram_api,
-        );
+        channel.send_message(&format!("Will check for {}", item), &telegram_api);
 
         let response = check_food(item.to_string());
 
-        channel.send_message(format!("{}", response), &telegram_api);
+        channel.send_message(&response, &telegram_api);
     } else if content.starts_with("/deregister ") {
         let item: &str = &content[12..];
 
@@ -188,39 +185,37 @@ fn handle_message(
         if listeners.contains(&to_remove) {
             listeners.remove_item(&to_remove);
             save_listeners(listeners);
-            channel.send_message(format!("Removed {}", item), &telegram_api);
+            channel.send_message(&format!("Removed {}", item), &telegram_api);
         } else {
-            channel.send_message(format!("Couldn't find {}", item), &telegram_api);
+            channel.send_message(&format!("Couldn't find {}", item), &telegram_api);
         }
     } else if content == "/help" {
         channel.send_message(
-            "/menu [food name] => tells you where that food is being served today".to_string(),
+            "/menu [food name] => tells you where that food is being served today",
             &telegram_api,
         );
 
+        channel.send_message("/register [food name] => schedules it to tell you each day where that food is being served that day", &telegram_api);
+
         channel.send_message(
-                    "/register [food name] => schedules it to tell you each day where that food is being served that day"
-                        .to_string(),
-                    &telegram_api,
-                );
+            "/deregister [food name] => removes a registered food",
+            &telegram_api,
+        );
     } else if content.starts_with("/room ") {
         let room: String = content[6..].to_string();
 
         let (_, status_code) = send_get(format!("http://localhost:8000/room/?room={}", room));
 
         if status_code == 200 {
-            channel.send_message(format!("Rooms found"), &telegram_api);
+            channel.send_message("Rooms found", &telegram_api);
         } else {
-            channel.send_message(format!("No rooms found"), &telegram_api);
+            channel.send_message("No rooms found", &telegram_api);
         }
     } else if content == "/run" {
-        channel.send_message(
-            "Checking for preregistered foods".to_string(),
-            &telegram_api,
-        );
+        channel.send_message("Checking for preregistered foods", &telegram_api);
         check_for_foods(&listeners, &telegram_api);
     } else if content.starts_with("/quit") && author.is_owner {
-        channel.send_message("UMass Bot Quitting".to_string(), &telegram_api);
+        channel.send_message("UMass Bot Quitting", &telegram_api);
         std::process::exit(0);
     }
 }
@@ -263,7 +258,7 @@ fn check_for_foods(listeners: &Arc<Mutex<Vec<(TelegramChannel, String)>>>, teleg
             println!("Checking on {:?} for {}", channel, food);
             let response = check_food(food);
 
-            channel.send_message(format!("{}", response), telegram_api);
+            channel.send_message(&response, telegram_api);
         });
 }
 
