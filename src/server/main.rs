@@ -48,7 +48,7 @@ fn food(food_store: State<FoodStore>, food: String) -> Result<String> {
 fn main() {
     rocket::ignite()
         .manage(load_sections_map())
-        .manage(food::get_store())
+        .manage(food::get_store().unwrap())
         .mount("/echo", routes![echo])
         .mount("/room", routes![room])
         .mount("/food", routes![food])

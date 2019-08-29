@@ -143,10 +143,21 @@ pub fn get_on_menu(
     item: &str,
     store: &FoodStore,
 ) -> Result<Vec<String>> {
-    let nodes: Vec<String> = get_menu_document(dining_common, store)?
+    let menu_document = get_menu_document(dining_common, store)?;
+    let base_nodes: Option<select::node::Node> = menu_document
         .find(Attr("id", &get_meal_code(meal)[..]).descendant(Attr("id", "content_text")))
-        .nth(0)
-        .expect("Couldn't find the menu items on page")
+        .nth(0);
+
+    if base_nodes.is_none() {
+        println!(
+            "Tried to find food at {:?} {:?} but failed to parse page",
+            dining_common, meal
+        );
+        return Ok(vec![]);
+    }
+
+    let nodes: Vec<String> = base_nodes
+        .unwrap()
         .find(Class("lightbox-nutrition"))
         .map(|node| node.text())
         .collect();
