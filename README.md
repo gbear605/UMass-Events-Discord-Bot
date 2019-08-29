@@ -1,6 +1,6 @@
 # UMass Events Bot
 
-[![builds.sr.ht status](https://builds.sr.ht/~gbear605/umass_discord_bot.svg)](https://builds.sr.ht/~gbear605/umass_discord_bot?)
+[![builds.sr.ht status](https://builds.sr.ht/~gbear605/umass_bot.svg)](https://builds.sr.ht/~gbear605/umass_bot?)
 
 A Discord and Telegram bot written in Rust to enable easy access to a variety of University of Massachusetts, Amherst services. Currently, it provides the ability to search across the dining halls to check which foods are present on a given day, as well as information on room availability to ease studying.
 
