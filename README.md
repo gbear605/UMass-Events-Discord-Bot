@@ -41,13 +41,3 @@ Expect the build step to initially take about fifteen minutes, then to take a wh
 To update the container, run ``docker pull ekidd/rust-musl-builder:nightly-2019-06-08``
 
 The built files will be in ``target/x86_64-unknown-linux-musl/release``
-
-## Commands
-
-| Command               | Description                                                                 |
-| --------------------- | --------------------------------------------------------------------------- |
-| !menu [food name]     | tells you where that food is being served today                             |
-| !register [food name] | schedules it to tell you each day where that food is being served that day  |
-| !room [room name]     | checks whether the given room is currently in use by a class or free        |
-| !help                 | tells you this list of commands                                             |
-
