@@ -7,7 +7,7 @@ packages:
   - pkgconf
   - sudo
 sources: 
-  - https://git.sr.ht/~gbear605/umass_discord_bot
+  - https://git.sr.ht/~gbear605/umass_bot
 secrets:
   - 0755116a-2598-41d7-b910-e8d6d97410b3
 tasks:
@@ -16,10 +16,10 @@ tasks:
       source $HOME/.cargo/env
   - build: |
       source $HOME/.cargo/env
-      cd umass_discord_bot
+      cd umass_bot
       cargo build --release
   - deploy: |
-      cd umass_discord_bot/target/release
+      cd umass_bot/target/release
       ssh -o StrictHostKeyChecking=no root@greenwichmeanti.me "pkill -f '/root/umass_bot'"
       scp -o StrictHostKeyChecking=no server root@greenwichmeanti.me:~/umass_bot/server
       scp -o StrictHostKeyChecking=no discord_client root@greenwichmeanti.me:~/umass_bot/discord_client
