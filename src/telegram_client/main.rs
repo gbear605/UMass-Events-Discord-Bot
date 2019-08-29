@@ -1,3 +1,5 @@
+#![feature(vec_remove_item)]
+
 extern crate chrono;
 extern crate futures;
 extern crate hyper;
@@ -29,7 +31,7 @@ use hyper::Client;
 
 use tokio_core::reactor::Core;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum TelegramChannel {
     ChannelId(telegram_bot::types::ChannelId),
     ChatMessage(telegram_bot::types::MessageChat),
@@ -175,6 +177,21 @@ fn handle_message(
         let response = check_food(item.to_string());
 
         channel.send_message(format!("{}", response), &telegram_api);
+    } else if content.starts_with("/deregister ") {
+        let item: &str = &content[12..];
+
+        let to_remove = (channel.clone(), item.to_string());
+
+        let mut unlocked_listeners = listeners.lock().unwrap();
+        let listeners = unlocked_listeners.deref_mut();
+
+        if listeners.contains(&to_remove) {
+            listeners.remove_item(&to_remove);
+            save_listeners(listeners);
+            channel.send_message(format!("Removed {}", item), &telegram_api);
+        } else {
+            channel.send_message(format!("Couldn't find {}", item), &telegram_api);
+        }
     } else if content == "/help" {
         channel.send_message(
             "/menu [food name] => tells you where that food is being served today".to_string(),

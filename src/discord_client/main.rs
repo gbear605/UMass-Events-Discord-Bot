@@ -1,3 +1,5 @@
+#![feature(vec_remove_item)]
+
 extern crate chrono;
 extern crate futures;
 extern crate openssl_probe;
@@ -109,7 +111,7 @@ impl EventHandler for Handler {
 group!({
     name: "general",
     options: {},
-    commands: [menu, echo, register, /*help,*/ room, run],
+    commands: [menu, echo, register, deregister, room, run],
 });
 
 group!({
@@ -159,6 +161,29 @@ fn register(ctx: &mut Context, msg: &Message, args: Args) -> CommandResult {
     );
 
     send_message(msg.channel_id, &check_food(food)?, &ctx.http);
+
+    Ok(())
+}
+
+#[command]
+fn deregister(ctx: &mut Context, msg: &Message, args: Args) -> CommandResult {
+    let mut writable_data = ctx.data.write();
+    let listeners = writable_data.get_mut::<Listeners>().unwrap();
+
+    let food: &str = args.rest();
+
+    let to_remove = (msg.channel_id.clone(), food.to_string());
+    if listeners.contains(&to_remove) {
+        listeners.remove_item(&to_remove);
+        save_listeners(listeners)?;
+        send_message(msg.channel_id, &format!("Removed {}", food), &ctx.http);
+    } else {
+        send_message(
+            msg.channel_id,
+            &format!("Couldn't find {}", food),
+            &ctx.http,
+        );
+    }
 
     Ok(())
 }
