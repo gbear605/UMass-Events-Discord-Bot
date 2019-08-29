@@ -8,9 +8,14 @@ extern crate tokio;
 extern crate tokio_core;
 extern crate umass_bot_common;
 
+use serenity::framework::standard::help_commands;
+use serenity::framework::standard::macros::help;
 use serenity::framework::standard::Args;
+use serenity::framework::standard::CommandGroup;
+use serenity::framework::standard::HelpOptions;
 use serenity::model::event::ResumedEvent;
 use serenity::model::gateway::Ready;
+use serenity::model::id::UserId;
 use umass_bot_common::datetime::get_time_till_scheduled;
 use umass_bot_common::error::*;
 
@@ -179,17 +184,6 @@ fn room(ctx: &mut Context, msg: &Message, args: Args) -> CommandResult {
     Ok(())
 }
 
-/*#[command]
-fn help(ctx: &mut Context, msg: &Message) -> CommandResult {
-    msg.reply(
-        ctx,
-        "```!menu [food name]     | tells you where that food is being served \
-         today```\n```!register [food name] | schedules it to tell you each day where that \
-         food is being served that day```",
-    )?;
-    Ok(())
-}*/
-
 #[command]
 fn run(ctx: &mut Context, msg: &Message) -> CommandResult {
     let mut writable_data = ctx.data.write();
@@ -215,6 +209,18 @@ fn run(ctx: &mut Context, msg: &Message) -> CommandResult {
 fn quit(ctx: &mut Context, msg: &Message) -> CommandResult {
     send_message(msg.channel_id, "UMass Bot Quitting", &ctx.http);
     std::process::exit(0);
+}
+
+#[help]
+fn default_help_command(
+    context: &mut Context,
+    msg: &Message,
+    args: Args,
+    help_options: &'static HelpOptions,
+    groups: &[&'static CommandGroup],
+    owners: HashSet<UserId>,
+) -> CommandResult {
+    help_commands::plain(context, msg, args, help_options, groups, owners)
 }
 
 fn read_listeners() -> Vec<(ChannelId, String)> {
@@ -291,7 +297,9 @@ fn main() {
     client.with_framework(
         StandardFramework::new()
             .configure(|c| c.prefix("!").owners(owners))
-            .group(&GENERAL_GROUP),
+            .group(&GENERAL_GROUP)
+            .group(&ADMIN_GROUP)
+            .help(&DEFAULT_HELP_COMMAND),
     );
 
     if let Err(why) = client.start() {
