@@ -1,11 +1,14 @@
+# Rust files
 /target/
 **/*.rs.bk
+
+# Test files
 discord_token
 discord_token_actual
 telegram_token
 telegram_token_actual
-.DS_Store
-README_SSH.md
 discord_listeners.txt
 telegram_listeners.txt
-token_actual
+
+# MacOS files
+.DS_Store
