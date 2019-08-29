@@ -2,7 +2,6 @@
 
 extern crate chrono;
 extern crate futures;
-extern crate hyper;
 extern crate openssl_probe;
 extern crate select;
 extern crate telegram_bot;
@@ -26,8 +25,8 @@ use std::thread;
 use futures::Stream;
 use telegram_bot::*;
 
-use hyper::rt::{Future, Stream as HyperStream};
-use hyper::Client;
+// For requests to server
+use reqwest::Url;
 
 use tokio_core::reactor::Core;
 
@@ -53,43 +52,27 @@ impl TelegramChannel {
     }
 }
 
-type ResponseCode = hyper::StatusCode;
+type ResponseCode = reqwest::StatusCode;
 
 fn send_get(url: String) -> (String, ResponseCode) {
     let url = url.replace(" ", "%20");
 
-    let body_mutex = Arc::new(Mutex::new(None));
-    let body_mutex_c = body_mutex.clone();
-
-    let status_mutex = Arc::new(Mutex::new(None));
-    let status_mutex_c = status_mutex.clone();
+    let mutex = Arc::new(Mutex::new(None));
+    let mutex_c = mutex.clone();
 
     let t = thread::spawn(move || {
-        tokio::run({
-            let client = Client::new();
-            client
-                .get(url.parse().unwrap())
-                .and_then(move |res| {
-                    *status_mutex_c.lock().unwrap() = Some(res.status());
-                    // asynchronously concatenate chunks of the body
-                    res.into_body().concat2()
-                })
-                .map_err(|err| {
-                    println!("Error: {}", err);
-                })
-                .and_then(move |body| {
-                    *body_mutex_c.lock().unwrap() =
-                        Some(std::str::from_utf8(&body).unwrap().to_string());
-                    Ok(())
-                })
-        });
+        let client = reqwest::Client::new();
+        let mut response = client
+            .get::<Url>(url.parse::<Url>().unwrap())
+            .send()
+            .unwrap();
+        *mutex_c.lock().unwrap() = Some((response.text().unwrap(), response.status()));
     });
 
     t.join().unwrap();
-    let body = body_mutex.lock().unwrap().as_ref().unwrap().to_string();
-    let unwrapped_status_mutex = status_mutex.lock().unwrap();
-    let status = unwrapped_status_mutex.as_ref().unwrap();
-    (body, *status)
+    let unlocked_mutex = mutex.lock().unwrap();
+    let (body, status) = unlocked_mutex.as_ref().unwrap();
+    (body.to_string(), *status)
 }
 
 fn check_food(food: String) -> String {
