@@ -67,7 +67,6 @@ fn send_get(url: String) -> (String, ResponseCode) {
     let t = thread::spawn(move || {
         tokio::run({
             let client = Client::new();
-            dbg!(url.clone());
             client
                 .get(url.parse().unwrap())
                 .and_then(move |res| {
@@ -80,14 +79,14 @@ fn send_get(url: String) -> (String, ResponseCode) {
                 })
                 .and_then(move |body| {
                     *body_mutex_c.lock().unwrap() =
-                        Some(format!("{}", std::str::from_utf8(&body).unwrap()));
+                        Some(std::str::from_utf8(&body).unwrap().to_string());
                     Ok(())
                 })
         });
     });
 
     t.join().unwrap();
-    let body = format!("{}", (body_mutex.lock().unwrap().as_ref().unwrap()));
+    let body = body_mutex.lock().unwrap().as_ref().unwrap().to_string();
     let unwrapped_status_mutex = status_mutex.lock().unwrap();
     let status = unwrapped_status_mutex.as_ref().unwrap();
     (body, *status)

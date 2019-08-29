@@ -152,7 +152,7 @@ fn register(ctx: &mut Context, msg: &Message, args: Args) -> CommandResult {
 
     let food: &str = args.rest();
 
-    listeners.push((msg.channel_id.clone(), food.to_string()));
+    listeners.push((msg.channel_id, food.to_string()));
     save_listeners(listeners)?;
     send_message(
         msg.channel_id,
@@ -172,7 +172,7 @@ fn deregister(ctx: &mut Context, msg: &Message, args: Args) -> CommandResult {
 
     let food: &str = args.rest();
 
-    let to_remove = (msg.channel_id.clone(), food.to_string());
+    let to_remove = (msg.channel_id, food.to_string());
     if listeners.contains(&to_remove) {
         listeners.remove_item(&to_remove);
         save_listeners(listeners)?;
@@ -279,7 +279,7 @@ fn check_for_foods(listeners: Vec<(ChannelId, String)>, http: &Arc<Http>) {
     listeners.into_iter().for_each(|(channel, food)| {
         println!("Checking on {:?} for {}", channel, food);
         match check_food(&food) {
-            Ok(response) => send_message(channel, &format!("{}", response), http),
+            Ok(response) => send_message(channel, &response, http),
             Err(_) => send_message(channel, &format!("Couldn't check for {}", food), http),
         }
     });
