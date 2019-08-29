@@ -4,6 +4,8 @@
 
 A Discord and Telegram bot written in Rust to enable easy access to a variety of University of Massachusetts, Amherst services. Currently, it provides the ability to search across the dining halls to check which foods are present on a given day, as well as information on room availability to ease studying.
 
+For the issue tracker, see https://todo.sr.ht/~gbear605/umass_bot
+
 ## Usage
 
 To add it to your server, go to [this link](https://discordapp.com/api/oauth2/authorize?client_id=355392985912836097&scope=bot&permissions=1) and authorize the bot.
@@ -49,11 +51,3 @@ The built files will be in ``target/x86_64-unknown-linux-musl/release``
 | !room [room name]     | checks whether the given room is currently in use by a class or free        |
 | !help                 | tells you this list of commands                                             |
 
-## TODO
-
-* Add !deregister
-* Add !events
-* Add !time that says how long until the next scheduled food announcement
-* Allow authorized users to make announcements to all servers the bot is on
-* Allow manual input of food for future days, for late night menus.
-* Add more usage of classroom data
