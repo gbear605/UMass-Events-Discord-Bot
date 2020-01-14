@@ -23,8 +23,8 @@ use umass_bot_common::error::*;
 
 // For discord
 use serenity::client::Client;
-use serenity::http::raw::Http;
 use serenity::http::GuildPagination;
+use serenity::http::Http;
 
 use serenity::prelude::*;
 
@@ -108,19 +108,14 @@ impl EventHandler for Handler {
     }
 }
 
-group!({
-    name: "general",
-    options: {},
-    commands: [menu, echo, register, deregister, room, run],
-});
+#[group]
+#[commands(menu, echo, register, deregister, room, run)]
+struct General;
 
-group!({
-    name: "admin",
-    options: {
-        owners_only: true,
-    },
-    commands: [quit],
-});
+#[group]
+#[commands(quit)]
+#[owners_only]
+struct Admin;
 
 #[command]
 fn menu(ctx: &mut Context, msg: &Message, args: Args) -> CommandResult {
