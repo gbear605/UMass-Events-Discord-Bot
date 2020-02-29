@@ -36,7 +36,10 @@ fn room(room_store: State<RoomStore>, room: String) -> Option<Json<Vec<Section>>
 }
 
 #[get("/?<food>")]
-fn food(food_store: State<FoodStore>, food: String) -> Result<String> {
+fn food(
+    food_store: State<FoodStore>,
+    food: String,
+) -> std::result::Result<String, rocket::response::Debug<UMassBotError>> {
     let places_found = food::get_food_on_menus(&food, &food_store)?;
 
     Ok(match places_found.len() {

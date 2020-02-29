@@ -16,13 +16,13 @@ tokio-core = "^0.1"
 futures = "^0.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-#rocket = { git = "https://github.com/SergioBenitez/Rocket" }
-#rocket_contrib = { git = "https://github.com/SergioBenitez/Rocket", default-features = false, features = ["json"]}
+rocket = { git = "https://github.com/SergioBenitez/Rocket" }
+rocket_contrib = { git = "https://github.com/SergioBenitez/Rocket", default-features = false, features = ["json"]}
 serenity = { version = "^0.8", features = ["framework", "standard_framework"] }
 
-#[[bin]]
-#name = "server"
-#path = "src/server/main.rs"
+[[bin]]
+name = "server"
+path = "src/server/main.rs"
 
 [[bin]]
 name = "telegram_client"
